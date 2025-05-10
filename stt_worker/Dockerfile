@@ -2,20 +2,21 @@ FROM python:3.9
 
 WORKDIR /app
 
-# ✅ 프로젝트 코드 복사
+# ✅ 서비스 코드만 복사
 COPY . .
 
-# ✅ pip 최신화 (버전 mismatch 방지)
+# ✅ 루트 requirements.txt 복사 (루트 build 시에는 안 해도 됨. 폴더 build 시 필수)
+COPY requirements.txt .
+
+# ✅ pip 최신화
 RUN pip install --upgrade pip
 
-# ✅ 반드시 whisper + torch를 먼저 고정 설치 (openai-whisper가 자동으로 최신 torch 설치 막기)
+# ✅ whisper + torch 고정 설치
 RUN pip install torch==2.5.1 -f https://download.pytorch.org/whl/cu121 \
  && pip install openai-whisper==20240930
 
-# ✅ 나머지 requirements 설치 (torch 제외, 주석 처리 상태로)
-COPY ../requirements.txt .
+# ✅ 나머지 requirements 설치
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ✅ 기본 실행 명령어
-#    (각 폴더에 맞게 파일명만 바꿔줌)
+# ✅ 기본 실행 명령어 (서비스마다 파일명만 다르게)
 CMD ["python", "stt_worker.py"]
