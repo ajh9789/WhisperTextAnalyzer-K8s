@@ -15,7 +15,7 @@ services:
     depends_on:
       - redis
     deploy:
-      replicas: 2  # ✅ STT Worker 2개 분산 처리
+      replicas: 2  # ✅ STT Worker 2개 분산 처리 이거 배포용이라 의미없는듯
 
   analyzer_worker:
     build: ./analyzer_worker
