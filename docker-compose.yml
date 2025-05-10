@@ -1,4 +1,5 @@
 version: '3'
+
 services:
   redis:
     image: redis:latest
@@ -6,23 +7,31 @@ services:
       - "6379:6379"
 
   recorder:
-    build: ./recorder
+    build:
+      context: .
+      dockerfile: recorder/Dockerfile
     depends_on:
       - redis
 
   stt_worker:
-    build: ./stt_worker
+    build:
+      context: .
+      dockerfile: stt_worker/Dockerfile
     depends_on:
       - redis
     deploy:
-      replicas: 2  # ✅ STT Worker 2개 분산 처리 이거 배포용이라 의미없는듯
+      replicas: 2  # ✅ local에서는 의미 없음 (배포툴에서 사용됨)
 
   analyzer_worker:
-    build: ./analyzer_worker
+    build:
+      context: .
+      dockerfile: analyzer_worker/Dockerfile
     depends_on:
       - redis
 
   listener:
-    build: ./listener
+    build:
+      context: .
+      dockerfile: listener/Dockerfile
     depends_on:
       - redis
