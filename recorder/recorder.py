@@ -27,12 +27,20 @@ ENERGY_GATE_THRESHOLD = 0.001  # 민감도: 평균 진폭이 threshold 미만이
 # ================================
 # 🎯 Redis 연결 객체 생성
 # ================================
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
+try:
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+    r.ping()
+except redis.ConnectionError:
+    print("❌ Redis 연결 실패! 프로그램 종료")
+    exit(1)
 # ================================
 # 🎧 오디오 디바이스 정보 확인
 # ================================
-device_info = sd.query_devices(DEVICE_ID, 'input')
+try:
+    device_info = sd.query_devices(DEVICE_ID, 'input')
+except Exception as e:
+    print(f"❌ 오디오 장치 인식 실패: {e}")
+    exit(1)
 SAMPLE_RATE = int(device_info['default_samplerate'])  # 선택된 디바이스의 기본 샘플레이트 확인
 
 print(f"🎙️ Recorder 시작 - Device {DEVICE_ID}: {device_info['name']} / {SAMPLE_RATE} Hz")
