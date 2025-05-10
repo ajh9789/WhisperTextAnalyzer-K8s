@@ -9,29 +9,29 @@ services:
   recorder:
     build:
       context: ./recorder
-      dockerfile: recorder/Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - redis
 
   stt_worker:
     build:
       context: ./stt_worker
-      dockerfile: stt_worker/Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - redis
     deploy:
-      replicas: 2  # ✅ local에서는 의미 없음 (배포툴에서 사용됨)
+      replicas: 2 #배포용
 
   analyzer_worker:
     build:
       context: ./analyzer_worker
-      dockerfile: analyzer_worker/Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - redis
 
   listener:
     build:
       context: ./listener
-      dockerfile: listener/Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - redis

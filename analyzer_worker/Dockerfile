@@ -13,7 +13,7 @@ RUN pip install torch==2.5.1 -f https://download.pytorch.org/whl/cu121 \
  && pip install openai-whisper==20240930
 
 # ✅ 나머지 requirements 설치 (torch 제외, 주석 처리 상태로)
-COPY ../../requirements.txt .
+COPY ../requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ✅ 기본 실행 명령어
