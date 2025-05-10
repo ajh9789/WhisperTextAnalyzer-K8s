@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ✅ 기본 실행 명령어
 #    (각 폴더에 맞게 파일명만 바꿔줌)
-CMD ["python", "analyer_worker.py"]
+CMD ["python", "analyzer_worker.py"]
