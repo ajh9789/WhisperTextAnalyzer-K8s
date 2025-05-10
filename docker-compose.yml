@@ -8,14 +8,14 @@ services:
 
   recorder:
     build:
-      context: .
+      context: ./recorder
       dockerfile: recorder/Dockerfile
     depends_on:
       - redis
 
   stt_worker:
     build:
-      context: .
+      context: ./stt_worker
       dockerfile: stt_worker/Dockerfile
     depends_on:
       - redis
@@ -24,14 +24,14 @@ services:
 
   analyzer_worker:
     build:
-      context: .
+      context: ./analyzer_worker
       dockerfile: analyzer_worker/Dockerfile
     depends_on:
       - redis
 
   listener:
     build:
-      context: .
+      context: ./listener
       dockerfile: listener/Dockerfile
     depends_on:
       - redis
