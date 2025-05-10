@@ -1,0 +1,28 @@
+version: '3'
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+  recorder:
+    build: ./recorder
+    depends_on:
+      - redis
+
+  stt_worker:
+    build: ./stt_worker
+    depends_on:
+      - redis
+    deploy:
+      replicas: 2  # ✅ STT Worker 2개 분산 처리
+
+  analyzer_worker:
+    build: ./analyzer_worker
+    depends_on:
+      - redis
+
+  listener:
+    build: ./listener
+    depends_on:
+      - redis
