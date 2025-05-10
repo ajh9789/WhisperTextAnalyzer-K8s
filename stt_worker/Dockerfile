@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # ✅ requirements.txt 복사 (상위 폴더에 requirements.txt 있을 경우)
-COPY ../requirements.txt .
+COPY requirements.txt .
 
 # ✅ 필수 패키지 설치
 RUN pip install --no-cache-dir -r requirements.txt
