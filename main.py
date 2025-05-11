@@ -1,19 +1,15 @@
 import subprocess
 import time
 import sys
+import os
 
 def start_redis_container():
-    """
-    ✅ Redis 컨테이너를 실행하는 함수
-    - 이미 존재하는 경우 docker start
-    - 없으면 docker run으로 새로 생성
-    """
+    """✅ Redis 컨테이너 실행 (없으면 생성)"""
     try:
         print("✅ Redis 컨테이너 시작 시도...")
         subprocess.run(["docker", "start", "my-redis"], check=True)
         print("✅ 기존 Redis 컨테이너 실행됨.")
     except subprocess.CalledProcessError:
-        # 컨테이너가 없을 경우 새로 생성
         print("⚠️ 기존 Redis 컨테이너 없음 → 새로 생성")
         try:
             subprocess.run([
@@ -25,56 +21,52 @@ def start_redis_container():
             print("✅ 새 Redis 컨테이너가 생성 및 실행됨.")
         except subprocess.CalledProcessError as e:
             print(f"❌ Redis 컨테이너 생성 실패: {e}")
-            print("👉 Docker Desktop이 실행 중인지 확인하세요.")
             sys.exit(1)
 
 def start_all_services():
-    """
-    ✅ 전체 서비스 실행 함수
-    - Redis → celery workers → listener → recorder 순서로 실행
-    - Windows에서는 각각을 새 콘솔 창으로 실행
-    """
+    """✅ 전체 서비스 실행"""
     start_redis_container()
-    # Redis 초기화 대기
-    time.sleep(3)
+    time.sleep(3)  # Redis 대기
 
-    flags = subprocess.CREATE_NEW_CONSOLE  # Windows: 새 콘솔 창으로 실행
+    flags = subprocess.CREATE_NEW_CONSOLE  # Windows: 새 콘솔
+
+    python_exe = sys.executable  # 현재 가상환경 python
 
     try:
+        # recorder
         subprocess.Popen(
-            ["celery", "-A","stt_worker", "worker", "--loglevel=info", "--concurrency=2"],
+            [python_exe, os.path.join("recorder", "recorder.py")],
+            creationflags=flags
+        )
+        print("✅ recorder 실행됨.")
+
+        # stt_worker (celery)
+        subprocess.Popen(
+            [python_exe, "-m", "celery", "-A", "stt_worker", "worker", "--loglevel=info", "--concurrency=2"],
             creationflags=flags
         )
         print("✅ stt_worker 실행됨.")
 
+        # analyzer_worker (celery)
         subprocess.Popen(
-            ["celery", "-A", "analyzer_worker", "worker", "--loglevel=info"],
+            [python_exe, "-m", "celery", "-A", "analyzer_worker", "worker", "--loglevel=info"],
             creationflags=flags
         )
         print("✅ analyzer_worker 실행됨.")
 
+        # listener
         subprocess.Popen(
-            ["python", "analyzer_worker/result_listener.py"],
+            [python_exe, os.path.join("listener", "listener.py")],
             creationflags=flags
         )
         print("✅ result_listener 실행됨.")
-
-        subprocess.Popen(
-            ["python", "recorder/recorder.py"],
-            creationflags=flags
-        )
-        print("✅ recorder 실행됨.")
 
         print("\n🎉 전체 시스템 정상 실행 완료.")
         print("🪄 각각의 독립 콘솔에서 서비스 상태를 모니터링하세요.\n")
 
     except Exception as e:
-        print(f"❌ 서비스 실행 중 오류 발생: {e}")
+        print(f"❌ 서비스 실행 중 오류: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    """
-    ✅ 프로그램 진입점
-    - main.py를 직접 실행했을 때만 start_all_services() 호출
-    """
     start_all_services()
