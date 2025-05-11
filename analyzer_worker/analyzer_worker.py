@@ -7,9 +7,9 @@ from transformers import pipeline
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = 6379
 
-app = Celery('analyzer', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+celery = Celery('analyzer', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 
-@app.task
+@celery.task
 def analyze_text():
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)

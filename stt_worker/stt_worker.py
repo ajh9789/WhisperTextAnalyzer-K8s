@@ -8,9 +8,9 @@ import os
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = 6379
 
-app = Celery('stt', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+celery = Celery('stt', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 
-@app.task
+@celery.task
 def transcribe_audio():
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
