@@ -33,3 +33,8 @@ weights/
 # git 폴더 무시
 # ======================
 .git/
+
+#파이참 구성동시 시작
+.localtest.run/
+#파이참 시작용
+start.py

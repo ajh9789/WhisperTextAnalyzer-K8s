@@ -31,11 +31,10 @@ def record_audio():
         print("무음 → 전송 생략")
         return
 
+
     audio_resampled = resample_poly(audio.flatten(), 1, 1)
     r.lpush("audio_queue", audio_resampled.tobytes())
-    r.lpush("celery", '')  # dummy task trigger 용 (원래는 필요 없음)
-    r.publish("text_channel", b"dummy")  # optional dummy publish (test)
-
+    # r.publish("text_channel", b"dummy")  # optional dummy publish (test)
     print("오디오 전송 완료")
 
 if __name__ == "__main__":
