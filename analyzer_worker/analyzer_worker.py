@@ -13,8 +13,7 @@ app = Celery('analyzer', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 def analyze_text():
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-        text = r.rpop("text_queue"
-                      "")
+        text = r.rpop("text_queue")
         if not text:
             return
         classifier = pipeline("sentiment-analysis")
