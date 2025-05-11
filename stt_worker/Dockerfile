@@ -19,4 +19,4 @@ RUN pip install torch==2.5.1 -f https://download.pytorch.org/whl/cu121 \
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ✅ 기본 실행 명령어 (서비스마다 파일명만 다르게)
-CMD ["python", "stt_worker.py"]
+CMD ["celery", "-A", "stt_worker", "worker", "--loglevel=info", "--concurrency=1"]
