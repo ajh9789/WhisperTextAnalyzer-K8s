@@ -1,6 +1,3 @@
-# =============================================
-# ✅ analyzer_worker/analyzer_worker.py 개선 최종 버전
-# =============================================
 import os
 import redis
 from celery import Celery
@@ -16,17 +13,20 @@ classifier = pipeline("sentiment-analysis")
 
 @app.task
 def analyze_text():
-    print("[Analyzer] polling text_queue...")
+    print("[Analyzer] ⏳ polling text_queue...")
     text = r.rpop("text_queue")
     if not text:
-        print("[Analyzer] queue empty.")
+        print("[Analyzer] 💤 queue empty, sleeping.")
         return
 
+    print(f"[Analyzer] 🎙️ text found, analyzing: {text.decode()}")
     result = classifier(text.decode())[0]
     output = f"{text.decode()} → {result['label']} ({result['score']:.2f})"
+
     r.publish("result_channel", output)
-    print(f"✅ Published result: {output}")
+    print(f"[Analyzer] ✅ published result: {output}")
 
 if __name__ == "__main__":
+    print("🚀 Analyzer Worker started.")
     while True:
         analyze_text()
