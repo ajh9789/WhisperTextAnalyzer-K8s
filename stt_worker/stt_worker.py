@@ -1,25 +1,22 @@
 # =============================================
-# ✅ 최종 개선: 실험 + 발표용 standalone polling 버전 (tiny 기준)
+# ✅ stt_worker/stt_worker.py (celery version 최종)
 # =============================================
-
-# recorder/recorder.py → 그대로 (정상)
-# listener/listener.py → 그대로 (정상)
-
-# ✅ stt_worker/stt_worker.py
-
 import os
 import numpy as np
 import redis
 import whisper
+from celery import Celery
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
+app = Celery('stt_worker', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-model_size = "tiny"  # ✅ 발표용 tiny 모델 고정
+model_size = os.getenv("MODEL_SIZE", "tiny")
 model = whisper.load_model(model_size)
 
+@app.task
 def transcribe_audio():
     print("[STT] ⏳ polling audio_queue...")
     audio_bytes = r.rpop("audio_queue")
@@ -34,8 +31,3 @@ def transcribe_audio():
 
     r.lpush("text_queue", text.encode())
     print(f"[STT] ✅ pushed to text_queue: {text}")
-
-if __name__ == "__main__":
-    print("🚀 STT Worker (tiny) started.")
-    while True:
-        transcribe_audio()

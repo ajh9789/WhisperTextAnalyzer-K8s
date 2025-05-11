@@ -1,21 +1,28 @@
-# ✅ analyzer_worker/analyzer_worker.py
-
+# =============================================
+# ✅ analyzer_worker/analyzer_worker.py (celery version 최종)
+# =============================================
 import os
 import redis
+from celery import Celery
 from transformers import pipeline
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
+app = Celery('analyzer_worker', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-classifier = pipeline("sentiment-analysis")
+classifier = pipeline(
+    "sentiment-analysis",
+    model="distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+)
 
 positive_count = 0
 positive_score_sum = 0.0
 negative_count = 0
 negative_score_sum = 0.0
 
+@app.task
 def analyze_text():
     global positive_count, positive_score_sum, negative_count, negative_score_sum
 
@@ -39,13 +46,8 @@ def analyze_text():
         negative_count += 1
         negative_score_sum += score
 
-    output = f"{icon}{emotion}[{score:.2f}] : {text.decode()}"
+    output = f"{icon} {emotion} [{score:.2f}] : {text.decode()}"
     r.publish("result_channel", output)
 
     print(f"[Analyzer] ✅ published result: {output}")
     print(f"[Analyzer] 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / 부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}")
-
-if __name__ == "__main__":
-    print("🚀 Analyzer Worker started.")
-    while True:
-        analyze_text()
