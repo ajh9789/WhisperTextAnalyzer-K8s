@@ -10,54 +10,51 @@ services:
   recorder:
     build:
       context: ./recorder
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
     environment:
       - REDIS_HOST=redis
-      - DOCKER=1   # ✅ 추가
+      - DOCKER=1
+    depends_on:
+      - redis
     restart: always
 
   stt_worker1:
     build:
       context: ./stt_worker
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
+    command: celery -A stt_worker worker --loglevel=info --concurrency=1 --pool=solo -n stt_worker1
     environment:
       - REDIS_HOST=redis
-      - DOCKER=1   # ✅ 추가
+      - DOCKER=1
+    depends_on:
+      - redis
     restart: always
 
   stt_worker2:
     build:
       context: ./stt_worker
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
+    command: celery -A stt_worker worker --loglevel=info --concurrency=1 --pool=solo -n stt_worker2
     environment:
       - REDIS_HOST=redis
-      - DOCKER=1   # ✅ 추가
+      - DOCKER=1
+    depends_on:
+      - redis
     restart: always
 
   analyzer_worker:
     build:
       context: ./analyzer_worker
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
     environment:
       - REDIS_HOST=redis
-      - DOCKER=1   # ✅ 추가
+      - DOCKER=1
+    depends_on:
+      - redis
     restart: always
 
   listener:
     build:
       context: ./listener
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
     environment:
       - REDIS_HOST=redis
-      - DOCKER=1   # ✅ 추가
+      - DOCKER=1
+    depends_on:
+      - redis
     restart: always
