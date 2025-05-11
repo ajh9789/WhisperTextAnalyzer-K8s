@@ -1,12 +1,21 @@
+# ========================
+# 🎙️ Whisper Text Analyzer - Docker Compose
+# ========================
+
 version: '3.9'
 
 services:
+  # ✅ Redis 서비스 (message broker 역할)
   redis:
     image: redis:latest
     ports:
       - "6379:6379"
     restart: always
 
+  # ========================
+  # 🎙️ Recorder 서비스
+  # 마이크 → audio_queue 전송
+  # ========================
   recorder:
     build:
       context: ./recorder
@@ -17,6 +26,10 @@ services:
       - redis
     restart: always
 
+  # ========================
+  # 🎙️ STT Worker 1
+  # audio_queue → Whisper STT → text_queue
+  # ========================
   stt_worker1:
     build:
       context: ./stt_worker
@@ -28,6 +41,10 @@ services:
       - redis
     restart: always
 
+  # ========================
+  # 🎙️ STT Worker 2
+  # (다중 STT 처리 → 부하 분산)
+  # ========================
   stt_worker2:
     build:
       context: ./stt_worker
@@ -39,6 +56,10 @@ services:
       - redis
     restart: always
 
+  # ========================
+  # 📊 Analyzer Worker
+  # text_queue → 감정 분석 → result_channel
+  # ========================
   analyzer_worker:
     build:
       context: ./analyzer_worker
@@ -49,6 +70,10 @@ services:
       - redis
     restart: always
 
+  # ========================
+  # 🖥️ Listener 서비스
+  # result_channel 구독 → 콘솔 실시간 출력
+  # ========================
   listener:
     build:
       context: ./listener
