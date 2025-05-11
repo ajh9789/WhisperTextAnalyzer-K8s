@@ -1,45 +1,43 @@
-# ✅ recorder.py 개선 버전
+
+# ========================
+# ✅ recorder/recorder.py 개선 버전
+# ========================
+
 import os
-import sounddevice as sd
 import numpy as np
+import sounddevice as sd
 import redis
 from scipy.signal import resample_poly
-from celery import Celery
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
-DEVICE_ID = int(os.getenv("DEVICE_ID", 14))
-RECORD_SECONDS = int(os.getenv("RECORD_SECONDS", 5))
-CHANNELS = 1
-ENERGY_GATE_THRESHOLD = float(os.getenv("ENERGY_THRESHOLD", 0.0005))
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-celery_app = Celery(broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+SAMPLE_RATE = 16000
+RECORD_SECONDS = 3
+ENERGY_GATE_THRESHOLD = float(os.getenv("ENERGY_THRESHOLD", 0.0007))
 
-device_info = sd.query_devices(DEVICE_ID, 'input')
-SAMPLE_RATE = int(device_info['default_samplerate'])
-print(f"🎙️ Recorder 시작: {device_info['name']} ({SAMPLE_RATE} Hz)")
+def record_audio():
+    print(f"recorder 연결 Redis host: {REDIS_HOST}")
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-def record_and_send():
-    try:
-        audio = sd.rec(int(RECORD_SECONDS * SAMPLE_RATE), samplerate=SAMPLE_RATE,
-                       channels=CHANNELS, dtype='float32', device=DEVICE_ID)
-        sd.wait()
-        audio = np.squeeze(audio)
+    print("녹음 시작")
+    audio = sd.rec(int(RECORD_SECONDS * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='float32')
+    sd.wait()
 
-        if np.mean(np.abs(audio)) < ENERGY_GATE_THRESHOLD:
-            print("🔕 무음 → 전송 생략")
-            return
+    energy = np.mean(np.abs(audio))
+    print(f"평균 에너지: {energy}")
 
-        if SAMPLE_RATE != 16000:
-            audio = resample_poly(audio, up=16000, down=SAMPLE_RATE)
+    if energy < ENERGY_GATE_THRESHOLD:
+        print("무음 → 전송 생략")
+        return
 
-        r.lpush("audio_queue", audio.astype(np.float32).tobytes())
-        print("✅ 오디오 전송 완료")
-        celery_app.send_task("stt.transcribe_audio")
-    except Exception as e:
-        print(f"❌ Recorder 오류: {e}")
+    audio_resampled = resample_poly(audio.flatten(), 1, 1)
+    r.lpush("audio_queue", audio_resampled.tobytes())
+    r.lpush("celery", '')  # dummy task trigger 용 (원래는 필요 없음)
+    r.publish("text_channel", b"dummy")  # optional dummy publish (test)
+
+    print("오디오 전송 완료")
 
 if __name__ == "__main__":
     while True:
-        record_and_send()
+        record_audio()
