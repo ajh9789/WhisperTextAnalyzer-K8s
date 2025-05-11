@@ -17,7 +17,7 @@ services:
       - REDIS_HOST=redis
     restart: always
 
-  stt_worker:
+  stt_worker1:
     build:
       context: ./stt_worker
       dockerfile: Dockerfile
@@ -25,8 +25,16 @@ services:
       - redis
     environment:
       - REDIS_HOST=redis
-    deploy:
-      replicas: 2   # 개발 시에는 무시됨, Swarm/K8s에서만 적용
+    restart: always
+
+  stt_worker2:
+    build:
+      context: ./stt_worker
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
     restart: always
 
   analyzer_worker:
