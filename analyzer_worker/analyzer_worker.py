@@ -1,4 +1,4 @@
-# ✅ analyzer_worker.py : redis text_queue → transformers 감정분석 → redis result_channel publish
+# ✅ analyzer_worker/analyzer_worker.py : redis text_queue → transformers 감정분석 → redis result_channel publish
 
 import os
 from celery import Celery
@@ -9,7 +9,7 @@ from transformers import pipeline
 # =============================
 # 🎯 환경 설정
 # =============================
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
 # =============================
@@ -17,7 +17,7 @@ REDIS_PORT = 6379
 # =============================
 celery = Celery('analyzer', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 
-@celery.task
+@celery.task(name="analyzer.analyze_text")  # ✅ task 이름 반드시 지정
 def analyze_text():
     """
     💡 text_queue에서 텍스트를 가져와 transformers pipeline으로 감정 분석
@@ -27,7 +27,7 @@ def analyze_text():
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
         text_bytes = r.rpop("text_queue")
         if not text_bytes:
-            return  # queue가 비어있으면 종료
+            return  # queue 비었으면 종료
 
         text = text_bytes.decode("utf-8")
 

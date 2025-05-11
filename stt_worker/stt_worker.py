@@ -10,7 +10,7 @@ import os
 # =============================
 # 🎯 환경 설정
 # =============================
-REDIS_HOST = os.getenv("REDIS_HOST", "redis")  # 도커 컨테이너 이름
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
 # =============================

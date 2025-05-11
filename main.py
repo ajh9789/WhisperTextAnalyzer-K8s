@@ -4,7 +4,7 @@ import sys
 import os
 
 def start_redis_container():
-    """✅ Redis 컨테이너 실행 (없으면 생성)"""
+    """✅ Redis 컨테이너 실행 (없으면 새로 생성)"""
     try:
         print("✅ Redis 컨테이너 시작 시도...")
         subprocess.run(["docker", "start", "my-redis"], check=True)
@@ -18,7 +18,7 @@ def start_redis_container():
                 "-p", "6379:6379",
                 "redis:latest"
             ], check=True)
-            print("✅ 새 Redis 컨테이너가 생성 및 실행됨.")
+            print("✅ 새 Redis 컨테이너 생성 및 실행됨.")
         except subprocess.CalledProcessError as e:
             print(f"❌ Redis 컨테이너 생성 실패: {e}")
             sys.exit(1)
@@ -26,35 +26,38 @@ def start_redis_container():
 def start_all_services():
     """✅ 전체 서비스 실행"""
     start_redis_container()
-    time.sleep(3)  # Redis 대기
+    time.sleep(3)  # Redis 부팅 대기
 
-    flags = subprocess.CREATE_NEW_CONSOLE  # Windows: 새 콘솔
+    # ✅ Windows / Linux 호환 처리
+    flags = 0
+    if sys.platform == "win32":
+        flags = subprocess.CREATE_NEW_CONSOLE
 
-    python_exe = sys.executable  # 현재 가상환경 python
+    python_exe = sys.executable  # 현재 실행 중인 Python (venv 포함)
 
     try:
-        # recorder
+        # 🎙 recorder
         subprocess.Popen(
             [python_exe, os.path.join("recorder", "recorder.py")],
             creationflags=flags
         )
         print("✅ recorder 실행됨.")
 
-        # stt_worker (celery)
+        # 🎧 stt_worker (celery worker, multi concurrency)
         subprocess.Popen(
             [python_exe, "-m", "celery", "-A", "stt_worker", "worker", "--loglevel=info", "--concurrency=2"],
             creationflags=flags
         )
         print("✅ stt_worker 실행됨.")
 
-        # analyzer_worker (celery)
+        # 💡 analyzer_worker (celery worker)
         subprocess.Popen(
             [python_exe, "-m", "celery", "-A", "analyzer_worker", "worker", "--loglevel=info"],
             creationflags=flags
         )
         print("✅ analyzer_worker 실행됨.")
 
-        # listener
+        # 📢 listener
         subprocess.Popen(
             [python_exe, os.path.join("listener", "listener.py")],
             creationflags=flags
@@ -62,7 +65,7 @@ def start_all_services():
         print("✅ result_listener 실행됨.")
 
         print("\n🎉 전체 시스템 정상 실행 완료.")
-        print("🪄 각각의 독립 콘솔에서 서비스 상태를 모니터링하세요.\n")
+        print("🪄 각각의 콘솔에서 서비스 상태를 확인하세요.\n")
 
     except Exception as e:
         print(f"❌ 서비스 실행 중 오류: {e}")

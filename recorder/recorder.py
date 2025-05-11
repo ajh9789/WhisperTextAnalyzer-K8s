@@ -10,7 +10,7 @@ from celery import Celery
 # =============================
 # 🎯 환경 설정
 # =============================
-REDIS_HOST = os.getenv("REDIS_HOST", "redis")     # 도커에서는 "redis" 서비스명
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 DEVICE_ID = int(os.getenv("DEVICE_ID", 14))
 RECORD_SECONDS = 5

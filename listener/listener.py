@@ -7,7 +7,7 @@ import time
 # =============================
 # 🎯 환경 설정
 # =============================
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
 def listen_channels():
