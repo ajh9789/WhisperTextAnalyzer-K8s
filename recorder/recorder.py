@@ -11,7 +11,7 @@ REDIS_PORT = 6379
 DEVICE_ID = int(os.getenv("DEVICE_ID", 14))
 RECORD_SECONDS = int(os.getenv("RECORD_SECONDS", 5))
 CHANNELS = 1
-ENERGY_GATE_THRESHOLD = float(os.getenv("ENERGY_THRESHOLD", 0.001))
+ENERGY_GATE_THRESHOLD = float(os.getenv("ENERGY_THRESHOLD", 0.0005))
 
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 celery_app = Celery(broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')

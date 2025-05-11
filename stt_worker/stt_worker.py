@@ -29,7 +29,6 @@ def transcribe_audio():
                                   temperature=0, condition_on_previous_text=False)
 
         text = result['text']
-        print(f"📥 STT 추출 텍스트: {text}")
         r.lpush("text_queue", text.encode("utf-8"))
         r.publish("text_channel", text)
     except Exception as e:
