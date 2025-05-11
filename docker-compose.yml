@@ -54,6 +54,7 @@ services:
   listener:
     build:
       context: ./listener
+    command: python3 listener.py
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
