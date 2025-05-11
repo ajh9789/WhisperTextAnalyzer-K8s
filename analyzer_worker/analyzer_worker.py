@@ -1,28 +1,28 @@
+import os
 from celery import Celery
 import redis
 import sqlite3
 from transformers import pipeline
 
-app = Celery('analyzer', broker='redis://redis:6379/0')
-r = redis.Redis(host="redis", port=6379)
-classifier = pipeline("sentiment-analysis")
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = 6379
 
-# ✅ SQLite 초기화
-conn = sqlite3.connect("results.db")
-c = conn.cursor()
-c.execute("CREATE TABLE IF NOT EXISTS results (text TEXT, emotion TEXT)")
-conn.commit()
+app = Celery('analyzer', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 
-# 🎯 Celery Task: 텍스트 감정 분석 + DB 저장 + Pub/Sub
 @app.task
 def analyze_text():
-    text = r.rpop("text_queue")
-    if not text:
-        return
-    emotion = classifier(text.decode())[0]['label']
-    c.execute("INSERT INTO results VALUES (?, ?)", (text.decode(), emotion))
-    conn.commit()
-    r.publish("result_channel", f"{text.decode()} → {emotion}")
-
-# ✅ Celery Worker만 실행
-# docker-compose exec analyzer_worker celery -A worker worker --loglevel=info
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+        text = r.rpop("text_queue"
+                      "")
+        if not text:
+            return
+        classifier = pipeline("sentiment-analysis")
+        emotion = classifier(text.decode())[0]['label']
+        with sqlite3.connect("results.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS results (text TEXT, emotion TEXT)")
+            conn.execute("INSERT INTO results VALUES (?, ?)", (text.decode(), emotion))
+            conn.commit()
+        r.publish("result_channel", f"{text.decode()} → {emotion}")
+    except Exception as e:
+        print(e)

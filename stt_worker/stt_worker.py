@@ -1,30 +1,33 @@
-from celery import Celery
-import redis
 import numpy as np
+import redis
 import whisper
+import torch
+from celery import Celery
+import os
 
-# Celery 설정
-app = Celery('stt', broker='redis://redis:6379/0')
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = 6379
 
-r = redis.Redis(host="redis", port=6379)
-model = whisper.load_model("small", device="cuda")
+app = Celery('stt', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 
-# 🎯 Celery Task: Redis audio_queue → Whisper STT → text_queue로 전달
 @app.task
 def transcribe_audio():
-    audio_bytes = r.rpop("audio_queue")
-    if not audio_bytes:
-        return
-    audio = np.frombuffer(audio_bytes, dtype=np.float32)
-    result = model.transcribe(
-        audio,
-        language="ko",
-        fp16=True,  # ✅ GPU 사용으로 속도 + 메모리 최적화
-        temperature=0,  # ✅ 예측 일관성 확보 (Deterministic output)
-        condition_on_previous_text=False  # ✅ 실시간 chunk 처리 시 필수 (Context 오류 방지)
-    )
-    r.lpush("text_queue", result['text'])
-
-# ✅ Celery Worker만 실행 (Multi Worker 대응)
-# docker-compose exec stt_worker celery -A worker worker --loglevel=info
-
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+        audio_bytes = r.rpop("audio_queue")
+        if not audio_bytes:
+            return
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = whisper.load_model("small", device=device)
+        audio = np.frombuffer(audio_bytes, dtype=np.float32)
+        result = model.transcribe(
+            audio,
+            language="ko",
+            fp16=(device == "cuda"),
+            temperature=0,
+            condition_on_previous_text=False
+        )
+        r.lpush("text_queue", result['text'])
+        print("✅ Whisper 변환 결과:", result['text'])
+    except Exception as e:
+        print(e)
