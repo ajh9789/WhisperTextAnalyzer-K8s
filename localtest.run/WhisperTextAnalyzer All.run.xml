@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="WhisperTextAnalyzer All" type="CompoundRunConfigurationType">
+    <toRun name="recorder" type="PythonConfigurationType" />
+    <toRun name="result_listener" type="PythonConfigurationType" />
+    <toRun name="analyzer_worker" type="ShConfigurationType" />
+    <toRun name="stt_worker" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
