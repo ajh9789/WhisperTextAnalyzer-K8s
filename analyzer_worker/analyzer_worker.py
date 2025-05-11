@@ -21,6 +21,7 @@ def analyze_text():
 
         text = text_bytes.decode("utf-8")
         result = classifier(text)[0]
+
         emotion = result['label']
 
         with sqlite3.connect("results.db") as conn:
