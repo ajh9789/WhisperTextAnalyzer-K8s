@@ -43,16 +43,26 @@ def start_all_services():
         )
         print("✅ recorder 실행됨.")
 
-        # 🎧 stt_worker (celery worker, multi concurrency)
+        # 🎧 stt_worker 1 (concurrency=1, worker name = stt_worker1)
         subprocess.Popen(
-            [python_exe, "-m", "celery", "-A", "stt_worker", "worker", "--loglevel=info", "--concurrency=2"],
+            [python_exe, "-m", "celery", "-A", "stt_worker", "worker",
+             "--loglevel=info", "--concurrency=1", "-n", "stt_worker1"],
             creationflags=flags
         )
-        print("✅ stt_worker 실행됨.")
+        print("✅ stt_worker1 실행됨.")
+
+        # 🎧 stt_worker 2 (concurrency=1, worker name = stt_worker2)
+        subprocess.Popen(
+            [python_exe, "-m", "celery", "-A", "stt_worker", "worker",
+             "--loglevel=info", "--concurrency=1", "-n", "stt_worker2"],
+            creationflags=flags
+        )
+        print("✅ stt_worker2 실행됨.")
 
         # 💡 analyzer_worker (celery worker)
         subprocess.Popen(
-            [python_exe, "-m", "celery", "-A", "analyzer_worker", "worker", "--loglevel=info"],
+            [python_exe, "-m", "celery", "-A", "analyzer_worker", "worker",
+             "--loglevel=info", "--concurrency=1", "-n", "analyzer_worker1"],
             creationflags=flags
         )
         print("✅ analyzer_worker 실행됨.")
