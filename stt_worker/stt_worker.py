@@ -1,39 +1,37 @@
 # =============================================
-# ✅ stt_worker/stt_worker.py
+# ✅ stt_worker/stt_worker.py 개선 버전
 # =============================================
-
+import os
 import numpy as np
 import redis
 import whisper
-import torch
 from celery import Celery
-import os
 
+# 🎯 DOCKER 환경변수 유무로 판단
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
-BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-celery = Celery('stt', broker=BROKER_URL)
-r = redis.Redis.from_url(BROKER_URL)
 
-MODEL_SIZE = "small"
-model_instance = None
+app = Celery('stt_worker', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-def get_model():
-    global model_instance
-    if model_instance is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_instance = whisper.load_model(MODEL_SIZE, device=device)
-    return model_instance
+model_size = os.getenv("MODEL_SIZE", "small")
+model = whisper.load_model(model_size)
 
-@celery.task(name="stt.transcribe_audio")
+@app.task
 def transcribe_audio():
+    print("[STT] polling audio_queue...")
     audio_bytes = r.rpop("audio_queue")
     if not audio_bytes:
+        print("[STT] queue empty.")
         return
 
-    audio = np.frombuffer(audio_bytes, dtype=np.float32)
-    result = get_model().transcribe(audio, language="ko", fp16=(torch.cuda.is_available()), temperature=0, condition_on_previous_text=False)
+    audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
+    result = model.transcribe(audio_np, language="ko", fp16=False)
     text = result['text']
 
-    r.lpush("text_queue", text.encode("utf-8"))
-    r.publish("text_channel", text)
+    r.lpush("text_queue", text.encode())
+    print(f"✅ Transcribed text pushed to text_queue: {text}")
+
+if __name__ == "__main__":
+    while True:
+        transcribe_audio()
