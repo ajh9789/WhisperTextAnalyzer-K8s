@@ -14,7 +14,7 @@ REDIS_PORT = 6379
 app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-model_size = os.getenv("MODEL_SIZE", "tiny")
+model_size = os.getenv("MODEL_SIZE", "small")
 model = whisper.load_model(model_size)
 
 @app.task

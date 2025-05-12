@@ -25,7 +25,14 @@ html = """
             body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
             #header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #333; color: white; font-size: 1.2em; flex-wrap: wrap; }
             #title { flex: 1; text-align: left; }
-            #startButton { margin: 0 20px; }
+            #startButton {
+    min-width: 120px;
+    margin: 0 auto;
+    display: block;
+    padding: 8px 16px;
+    font-size: 1em;
+    cursor: pointer;
+}
             #people { flex: 1; text-align: right; }
             #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
             #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
@@ -36,7 +43,7 @@ html = """
         <div id="header">
             <div id="title">🎙️ 실시간 감정 분석</div>
             <button id="startButton">🎙️ Start</button>
-            <div id="people">연결 인원 : 0/2</div>
+            <div id="people">연결 인원: 0/2</div>
         </div>
         <div id="log"></div>
         <div id="stats">👍 0% 0회 | 0회 0% 👎</div>
