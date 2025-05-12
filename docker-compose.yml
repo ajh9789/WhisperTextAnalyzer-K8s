@@ -1,9 +1,7 @@
-# =============================================
-# ✅ 최종 docker-compose.yml (FastAPI 포함 버전)
-# =============================================
+# ==========================
+# ✅ 리눅스 배포 전용 docker-compose.yml (최종 버전)
 
 version: '3.9'
-
 services:
   redis:
     image: redis:latest
@@ -24,7 +22,7 @@ services:
   stt_worker1:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker worker --loglevel=info --concurrency=1 --pool=solo -n stt_worker1
+    command: celery -A stt_worker worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -35,7 +33,7 @@ services:
   stt_worker2:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker worker --loglevel=info --concurrency=1 --pool=solo -n stt_worker2
+    command: celery -A stt_worker worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -46,7 +44,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A analyzer_worker worker --loglevel=info --concurrency=1 --pool=solo -n analyzer_worker1
+    command: celery -A analyzer_worker worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -77,5 +75,12 @@ services:
       - redis
     restart: always
 
-# ✅ fastapi_service 추가 → 웹으로 스마트폰 Mic → Redis audio_queue 전송
-# ✅ 발표용 + Azure 배포용 완전체
+# ✅ 리눅스 배포 시 실행 명령어 예시
+# docker-compose up --scale stt_worker=2 -d
+
+# ==========================
+# ✅ 설명
+# - stt_worker 단일 서비스 정의
+# - 배포 시 컨테이너 개수 조절 (--scale)
+# - 윈도우용 pool=solo 제거 → 리눅스 최적화 완성
+# 윈도우용 --concurrency=1 --pool=solo
