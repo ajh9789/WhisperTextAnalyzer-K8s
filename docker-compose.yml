@@ -1,7 +1,3 @@
-# ==========================
-# ✅ 리눅스 배포 전용 docker-compose.yml (최종 버전)
-# ✅ 리눅스 배포 전용 docker-compose.yml (최종 버전)
-
 version: '3.9'
 services:
   redis:
@@ -12,7 +8,7 @@ services:
 
   recorder:
     build:
-      context: ./recorder
+      context: ./recorder_service
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -23,7 +19,7 @@ services:
   stt_worker1:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker worker --loglevel=info
+    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -34,7 +30,7 @@ services:
   stt_worker2:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker worker --loglevel=info
+    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -45,7 +41,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A analyzer_worker worker --loglevel=info
+    command: celery -A analyzer_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -55,7 +51,7 @@ services:
 
   listener:
     build:
-      context: ./listener
+      context: ./listener_service
     command: python3 listener.py
     environment:
       - REDIS_HOST=redis
@@ -75,6 +71,7 @@ services:
     depends_on:
       - redis
     restart: always
+    command: uvicorn fastapi_service.service:service --host 0.0.0.0 --port 8000
 # ✅ 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 
