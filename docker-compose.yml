@@ -19,7 +19,7 @@ services:
   stt_worker:
     build:
       context: ./stt_worker
-    command: celery -A \worker:celery_app worker --loglevel=info
+    command: celery -A worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
