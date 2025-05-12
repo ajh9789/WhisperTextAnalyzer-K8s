@@ -11,7 +11,7 @@ celery_app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 #언젠가 쓸 환경변수 사용을 위해 미리사용해보
-model_size = os.getenv("MODEL_SIZE", "base")
+model_size = os.getenv("MODEL_SIZE", "tiny")
 model_path = os.getenv("MODEL_PATH", "/app/models")
 os.makedirs(model_path, exist_ok=True)   # ✅ 폴더 자동 생성
 model = openai_whisper.load_model(model_size, download_root=model_path)
