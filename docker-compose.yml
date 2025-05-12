@@ -9,6 +9,7 @@ services:
   recorder:
     build:
       context: ./recorder_service
+    command: python3 service.py
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -52,7 +53,7 @@ services:
   listener:
     build:
       context: ./listener_service
-    command: python3 listener.py
+    command: python3 service.py
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
