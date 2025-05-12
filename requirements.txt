@@ -6,3 +6,4 @@ scipy==1.15.3
 sounddevice==0.4.6
 transformers==4.40.1
 whisper==1.1.10
+torch==2.0.1
