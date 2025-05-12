@@ -1,7 +1,3 @@
-# =============================================
-# ✅ analyzer_worker/analyzer_worker.py (개선판)
-# =============================================
-
 import os
 import redis
 from celery import Celery

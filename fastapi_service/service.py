@@ -1,7 +1,3 @@
-# =============================================
-# ✅ fastapi_service/app.py (Start 버튼 + Header 정렬 최종판)
-# =============================================
-
 import os
 import redis
 import asyncio

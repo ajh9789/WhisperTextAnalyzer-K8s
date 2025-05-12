@@ -1,7 +1,3 @@
-# =============================================
-# ✅ stt_worker/stt_worker.py (개선판)
-# =============================================
-
 import os
 import numpy as np
 import redis

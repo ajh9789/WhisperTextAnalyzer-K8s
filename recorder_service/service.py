@@ -1,7 +1,3 @@
-# =============================================
-# ✅ recorder/recorder.py (Azure + 로컬 완전 대응)
-# =============================================
-
 import os
 import numpy as np
 import sounddevice as sd

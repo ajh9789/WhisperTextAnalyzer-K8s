@@ -1,7 +1,3 @@
-# =============================================
-# ✅ listener/listener.py (개선판 + logging 추가)
-# =============================================
-
 import os
 import redis
 import logging
