@@ -37,5 +37,4 @@ weights/
 #파이참 구성동시 시작
 .localtest.run/
 #파이참 시작용
-start.py
-/run.bat
+recorder/
