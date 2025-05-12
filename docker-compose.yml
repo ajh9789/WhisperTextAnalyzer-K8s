@@ -15,7 +15,7 @@ services:
       - DOCKER=1
     depends_on:
       - redis
-      -
+
   stt_worker:
     build:
       context: ./stt_worker
