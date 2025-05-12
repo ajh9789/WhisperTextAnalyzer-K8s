@@ -1,5 +1,5 @@
 # =============================================
-# ✅ recorder/recorder.py (개선판)
+# ✅ recorder/recorder.py (Azure + 로컬 완전 대응)
 # =============================================
 
 import os
@@ -14,18 +14,21 @@ REDIS_PORT = 6379
 SAMPLE_RATE = 16000
 RECORD_SECONDS = 5
 ENERGY_GATE_THRESHOLD = float(os.getenv("ENERGY_THRESHOLD", 0.0001))
-DEVICE_ID = 7
+DEVICE_ID = None  # ✅ None → 기본 마이크 or Azure에서 예외 안 나게
 
-def record_audio():
-    """
-    마이크에서 오디오 녹음 후 Redis audio_queue로 push.
-    에너지 게이트 필터링으로 무음 제거.
-    """
-    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
-    print(f"🎙️ Recording from device {DEVICE_ID}...")
+def get_redis_connection():
     try:
-        # ✅ 마이크 녹음 시작
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+        r.ping()
+        print("✅ Redis 연결 성공")
+        return r
+    except redis.ConnectionError as e:
+        print(f"❌ Redis 연결 실패: {e}")
+        return None
+
+def record_audio(redis_conn):
+    print(f"\n🎙️ Recording from device {DEVICE_ID}...")
+    try:
         audio = sd.rec(
             int(RECORD_SECONDS * SAMPLE_RATE),
             samplerate=SAMPLE_RATE,
@@ -35,24 +38,31 @@ def record_audio():
         )
         sd.wait()
     except Exception as e:
-        print(f"❌ Recorder error: {e}")
+        print(f"❌ 마이크 녹음 실패: {e}")
         return
 
-    # ✅ 녹음 에너지 체크 (noise filter)
     energy = np.mean(np.abs(audio))
-    print(f"🔎 Energy: {energy}")
+    print(f"🔎 에너지: {energy}")
     if energy < ENERGY_GATE_THRESHOLD:
-        print("⚠️ Low energy detected, skipping frame.")
+        print("⚠️ 무음으로 판단 → frame 건너뜀")
         return
 
-    # ✅ 오디오 flatten + push
     try:
         audio_resampled = resample_poly(audio.flatten(), 1, 1)
-        r.lpush("audio_queue", audio_resampled.tobytes())
-        print("✅ Audio pushed to audio_queue.")
+        redis_conn.lpush("audio_queue", audio_resampled.tobytes())
+        print("✅ 오디오 Redis audio_queue 전송 완료")
     except Exception as e:
-        print(f"❌ Redis push error: {e}")
+        print(f"❌ Redis 전송 실패: {e}")
 
 if __name__ == "__main__":
-    while True:
-        record_audio()
+    redis_conn = get_redis_connection()
+    if not redis_conn:
+        print("❌ Redis 연결 실패 → 프로그램 종료")
+        exit(1)
+
+    print("🎧 Recorder 서비스 시작 (Ctrl+C로 중지)")
+    try:
+        while True:
+            record_audio(redis_conn)
+    except KeyboardInterrupt:
+        print("\n🛑 프로그램 종료 (Ctrl+C)")
