@@ -10,7 +10,7 @@ from transformers import pipeline
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
-app = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+celery_app = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 classifier = pipeline(
@@ -24,7 +24,7 @@ positive_score_sum = 0.0
 negative_count = 0
 negative_score_sum = 0.0
 
-@app.task
+@celery_app.task
 def analyze_text():
     """
     Redis의 text_queue에서 텍스트를 가져와 감정 분석 후 result_channel로 publish

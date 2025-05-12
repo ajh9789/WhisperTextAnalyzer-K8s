@@ -5,19 +5,21 @@
 import os
 import numpy as np
 import redis
-import whisper
+import whisper as openai_whisper
 from celery import Celery
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
-app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+celery_app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-model_size = os.getenv("MODEL_SIZE", "small")
-model = whisper.load_model(model_size, download_root="/app/models")
+model_size="small"
+model_path = os.getenv("MODEL_PATH", "/app/models")
+os.makedirs(model_path, exist_ok=True)   # ✅ 폴더 자동 생성
+model = openai_whisper.load_model(model_size, download_root=model_path)
 
-@app.task
+@celery_app.task
 def transcribe_audio():
     """
     Redis audio_queue에서 오디오 데이터를 가져와 Whisper STT로 텍스트 변환 후 text_queue에 push
