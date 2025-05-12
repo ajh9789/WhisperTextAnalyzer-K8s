@@ -1,0 +1,6 @@
+# ✅ recorder/requirements.txt
+numpy==1.26.4
+scipy==1.13.0
+redis==5.0.4
+sounddevice==0.4.6
+python-dotenv==1.0.1
