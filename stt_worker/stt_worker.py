@@ -15,7 +15,7 @@ app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 model_size = os.getenv("MODEL_SIZE", "small")
-model = whisper.load_model(model_size)
+model = whisper.load_model(model_size, download_root="/app/models")
 
 @app.task
 def transcribe_audio():
