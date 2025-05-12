@@ -1,5 +1,5 @@
 # =============================================
-# ✅ fastapi_service/app.py (최종 개선: 혼자용 + 2명 제한 + 대화창 + 통계)
+# ✅ fastapi_service/app.py (개선판: Redis ping + 예외처리 추가)
 # =============================================
 
 import os
@@ -80,6 +80,13 @@ async def get():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    try:
+        # ✅ Redis 연결 확인 (없으면 종료)
+        r.ping()
+    except redis.ConnectionError:
+        await websocket.close(code=1000)
+        return
+
     if len(connected_users) >= 2:
         await websocket.close(code=1000)
         return
@@ -89,7 +96,10 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_bytes()
-            r.lpush("audio_queue", data)
-            await websocket.send_text("✅ Audio chunk received")
+            try:
+                r.lpush("audio_queue", data)
+                await websocket.send_text("✅ Audio chunk received")
+            except redis.ConnectionError:
+                await websocket.send_text("❌ Redis disconnected")
     except WebSocketDisconnect:
         connected_users.remove(websocket)
