@@ -1,5 +1,6 @@
 # ==========================
 # ✅ 리눅스 배포 전용 docker-compose.yml (최종 버전)
+# ✅ 리눅스 배포 전용 docker-compose.yml (최종 버전)
 
 version: '3.9'
 services:
@@ -9,15 +10,15 @@ services:
       - "6379:6379"
     restart: always
 
-#  recorder: # 웹에선 필요없다!
-#    build:
-#      context: ./recorder
-#    environment:
-#      - REDIS_HOST=redis
-#      - DOCKER=1
-#    depends_on:
-#      - redis
-#    restart: always
+  recorder:
+    build:
+      context: ./recorder
+    environment:
+      - REDIS_HOST=redis
+      - DOCKER=1
+    depends_on:
+      - redis
+    restart: always
 
   stt_worker1:
     build:
@@ -74,7 +75,6 @@ services:
     depends_on:
       - redis
     restart: always
-
 # ✅ 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 
