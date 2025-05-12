@@ -15,12 +15,12 @@ services:
       - DOCKER=1
     depends_on:
       - redis
-    restart: always
+
 
   stt_worker1:
     build:
       context: ./stt_worker
-    command: celery -A worker:celery_app worker --loglevel=info
+    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -31,7 +31,7 @@ services:
   stt_worker2:
     build:
       context: ./stt_worker
-    command: celery -A worker:celery_app worker --loglevel=info
+    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -42,7 +42,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A worker:celery_app worker --loglevel=info
+    command: celery -A analyzer_worker.worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
