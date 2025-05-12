@@ -9,15 +9,15 @@ services:
       - "6379:6379"
     restart: always
 
-  recorder:
-    build:
-      context: ./recorder
-    environment:
-      - REDIS_HOST=redis
-      - DOCKER=1
-    depends_on:
-      - redis
-    restart: always
+#  recorder: # 웹에선 필요없다!
+#    build:
+#      context: ./recorder
+#    environment:
+#      - REDIS_HOST=redis
+#      - DOCKER=1
+#    depends_on:
+#      - redis
+#    restart: always
 
   stt_worker1:
     build:
