@@ -8,7 +8,7 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-app = FastAPI()
+service = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
@@ -103,11 +103,11 @@ html = """
 </html>
 """
 
-@app.get("/")
+@service.get("/")
 async def get():
     return HTMLResponse(html)
 
-@app.websocket("/ws")
+@service.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
         r.ping()
