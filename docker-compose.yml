@@ -15,20 +15,8 @@ services:
       - DOCKER=1
     depends_on:
       - redis
-
-
-  stt_worker1:
-    build:
-      context: ./stt_worker
-    command: celery -A worker:celery_app worker --loglevel=info
-    environment:
-      - REDIS_HOST=redis
-      - DOCKER=1
-    depends_on:
-      - redis
-    restart: always
-
-  stt_worker2:
+      -
+  stt_worker:
     build:
       context: ./stt_worker
     command: celery -A worker:celery_app worker --loglevel=info
