@@ -2,7 +2,7 @@
 # ✅ listener/Dockerfile
 # =============================================
 
-FROM python:3.9
+FROM python:3.10
 WORKDIR /app
 COPY . .
 RUN pip install --upgrade pip
