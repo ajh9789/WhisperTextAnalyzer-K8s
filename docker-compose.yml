@@ -1,3 +1,7 @@
+# =============================================
+# ✅ 최종 docker-compose.yml (FastAPI 포함 버전)
+# =============================================
+
 version: '3.9'
 
 services:
@@ -60,3 +64,18 @@ services:
     depends_on:
       - redis
     restart: always
+
+  fastapi_service:
+    build:
+      context: ./fastapi_service
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - DOCKER=1
+    depends_on:
+      - redis
+    restart: always
+
+# ✅ fastapi_service 추가 → 웹으로 스마트폰 Mic → Redis audio_queue 전송
+# ✅ 발표용 + Azure 배포용 완전체
