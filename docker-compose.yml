@@ -19,7 +19,7 @@ services:
   stt_worker1:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
+    command: celery -A worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -30,7 +30,7 @@ services:
   stt_worker2:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker.worker:celery_app worker --loglevel=info
+    command: celery -A worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -41,7 +41,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A analyzer_worker.worker:celery_app worker --loglevel=info
+    command: celery -A worker:celery_app worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -71,7 +71,7 @@ services:
     depends_on:
       - redis
     restart: always
-    command: uvicorn fastapi_service.service:service --host 0.0.0.0 --port 8000
+    command: uvicorn service:service --host 0.0.0.0 --port 8000
 # ✅ 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 
