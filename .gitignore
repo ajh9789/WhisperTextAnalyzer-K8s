@@ -49,5 +49,5 @@ desktop.ini
 *.bak
 *.tmp
 
-#배포용에선 recoder가 의미가없음
+#배포용에선 recorder가 의미가없음
 recorder/
