@@ -1,5 +1,5 @@
 # =============================================
-# ✅ fastapi_service/app.py (최종 통합 개선판)
+# ✅ fastapi_service/app.py (최종 통합 개선판 + 디자인 준비)
 # =============================================
 
 import os
@@ -23,22 +23,25 @@ html = """
         <title>Realtime STT & Emotion Monitor</title>
         <style>
             body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
-            #header { padding: 10px; background: #333; color: #fff; text-align: center; font-size: 1.2em; }
+            #header { padding: 10px; background: #333; color: #fff; text-align: center; font-size: 1.2em; display: flex; justify-content: space-between; align-items: center; }
             #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
-            #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: space-between; font-size: 1.1em; }
+            #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
         </style>
     </head>
     <body>
-        <div id="header">🎙️ 실시간 감정 분석 모니터</div>
+        <div id="header">
+            <span>🎙️ 실시간 감정 분석 모니터</span>
+            <span id="people">현재 연결 인원: 0/2</span>
+        </div>
         <div id="log"></div>
-        <div id="stats"><span id="people">0/2 연결됨</span> <span id="result">긍정: 0회 / 부정: 0회</span></div>
+        <div id="stats">👍 0% 0회 0% | 0% 0회 0% 👎</div>
 
         <script>
             var ws = new WebSocket("ws://" + location.host + "/ws");
             var log = document.getElementById("log");
-            var stats = document.getElementById("result");
+            var stats = document.getElementById("stats");
             var people = document.getElementById("people");
-            var positive = 0, negative = 0;
+            var positive = 0, negative = 0, pos_sum = 0, neg_sum = 0;
 
             ws.onopen = function() {
                 navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
@@ -55,7 +58,11 @@ html = """
             ws.onmessage = function(event) {
                 var data = event.data;
                 if (data.startsWith("PEOPLE:")) {
-                    people.textContent = data.replace("PEOPLE:", "") + " 연결됨";
+                    people.textContent = "현재 연결 인원: " + data.replace("PEOPLE:", "");
+                    return;
+                }
+                if (data.startsWith("ALERT:")) {
+                    alert(data.replace("ALERT:", ""));
                     return;
                 }
                 var div = document.createElement("div");
@@ -63,9 +70,22 @@ html = """
                 log.appendChild(div);
                 log.scrollTop = log.scrollHeight;
 
-                if (data.includes("긍정")) positive++;
-                else if (data.includes("부정")) negative++;
-                stats.textContent = `긍정: ${positive}회 / 부정: ${negative}회`;
+                let score = Math.random(); // 🎯 예시 (실제 감정 분석 score 값으로 교체 필요)
+                if (data.includes("긍정")) {
+                    positive++;
+                    pos_sum += score;
+                } else if (data.includes("부정")) {
+                    negative++;
+                    neg_sum += score;
+                }
+
+                let total = positive + negative;
+                let pos_ratio = total > 0 ? Math.round((positive / total) * 100) : 0;
+                let neg_ratio = total > 0 ? Math.round((negative / total) * 100) : 0;
+                let pos_avg = positive > 0 ? Math.round((pos_sum / positive) * 100) : 0;
+                let neg_avg = negative > 0 ? Math.round((neg_sum / negative) * 100) : 0;
+
+                stats.textContent = `👍 ${pos_ratio}% ${positive}회 ${pos_avg}% | ${neg_avg}% ${negative}회 ${neg_ratio}% 👎`;
             }
 
             ws.onclose = function() {
@@ -98,7 +118,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     connected_users.add(websocket)
 
-    # ✅ 연결 인원수 update broadcast
+    # 연결 인원 update
     for ws in connected_users:
         await ws.send_text(f"PEOPLE:{len(connected_users)}/2")
 
@@ -115,19 +135,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     r.lpush("audio_queue", data)
                     await websocket.send_text("✅ Audio chunk received")
                 except redis.ConnectionError:
-                    await websocket.send_text("❌ Redis disconnected")
+                    await websocket.send_text("ALERT:서버가 불안정해서 연결을 끊습니다.")
+                    break
             except asyncio.TimeoutError:
                 now = asyncio.get_event_loop().time()
                 if now - last_active > inactivity_timeout:
-                    await websocket.send_text("⏳ 30분 inactivity → 연결 종료")
+                    await websocket.send_text("ALERT:30분이 지나서 연결을 끊습니다.")
                     break
                 if now - last_active > idle_timeout:
-                    await websocket.send_text("⏳ 10분 idle → 연결 종료")
+                    await websocket.send_text("ALERT:10분 이상 말이 없어서 연결을 끊습니다.")
                     break
     except WebSocketDisconnect:
         pass
     finally:
         connected_users.remove(websocket)
-        # ✅ 연결 인원수 update broadcast
         for ws in connected_users:
             await ws.send_text(f"PEOPLE:{len(connected_users)}/2")
