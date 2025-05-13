@@ -18,30 +18,22 @@ os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
 @celery_app.task
-def transcribe_audio():
+def transcribe_audio(audio_bytes):
     print("[STT] ⏳ audio_queue polling 시작")
-    try:
-        audio_bytes = r.rpop("audio_queue")
-        if not audio_bytes:
-            print("[STT] 💤 audio_queue 비어있음")
-            return
+    audio_bytes = r.rpop("audio_queue")
+    if not audio_bytes:
+        print("[STT] 💤 audio_queue 비어있음")
+        return
 
-        print(f"[STT] ✅ pulled {len(audio_bytes)} bytes from Redis")
-        audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
+    print(f"[STT] ✅ pulled {len(audio_bytes)} bytes from Redis")
+    audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
 
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
-            write(tmpfile.name, 16000, audio_np)
-            result = model.transcribe(tmpfile.name, language="ko", fp16=False)
+    with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
+        write(tmpfile.name, 16000, audio_np)
+        result = model.transcribe(tmpfile.name, language="ko", fp16=False)
 
-        text = result.get("text", "").strip()
-        print(f"[STT] 🎙️ Whisper STT 결과: {text}")
+    text = result.get("text", "").strip()
+    print(f"[STT] 🎙️ Whisper STT 결과: {text}")
+    celery_app.send_task("analyzer_worker.analyze_text", args=[text])
+    print(f"[STT] ✅ text_queue에 push 완료: {text}")
 
-        r.lpush("text_queue", text.encode())
-        print(f"[STT] ✅ text_queue에 push 완료: {text}")
-
-    except Exception as e:
-        print(f"[STT] ❌ Error: {e}")
-
-if __name__ == "__main__":
-    while True:
-        transcribe_audio()

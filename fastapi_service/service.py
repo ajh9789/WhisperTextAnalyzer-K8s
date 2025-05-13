@@ -2,12 +2,14 @@ import os
 import redis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from celery import Celery
 
 service = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+celery_app = Celery(broker=f"redis://{REDIS_HOST}:6379/0")
 
 connected_users = set()
 
@@ -156,8 +158,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # ✅ 핵심 수정: receive_bytes로 바로 받기
             audio_chunk = await websocket.receive_bytes()
             print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
-            r.lpush("audio_queue", audio_chunk)
-            print("🎯 Redis audio_queue에 push 완료")
+            celery_app.send_task("stt_worker.transcribe_audio", args=[audio_chunk])
+            print("🎯 Redis audio_queue에 push, sst_work 호출 완료")
     except WebSocketDisconnect:
         print("❌ WebSocket 연결 끊김")
     except Exception as e:

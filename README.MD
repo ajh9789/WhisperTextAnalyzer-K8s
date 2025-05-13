@@ -142,7 +142,48 @@ FastAPI WebSocket으로 실시간 스트림 연결 시 서버에서 **Whisper �
 - **단점**: ngrok 무료 버전은 1시간마다 주소가 바뀜
 - **장점**: 실시간 테스트, 모바일 접속, 다른 PC 접속 등 쉽게 해결 가능
 
----
+### 7. FastAPI WebSocket 데이터 수신 문제
+
+초기 버전에서는 FastAPI 서버에서 WebSocket으로 들어오는 데이터를 `await websocket.receive()`로 처리했습니다. 이 방식은 FastAPI에서 dict 형태로 데이터를 반환하는데, 브라우저 측에서 binary 데이터를 보낼 경우 데이터가 예상과 다르게 변형되거나 key issue가 발생하는 문제가 있었습니다. 특히 AudioWorklet에서 전송한 PCM Float32 binary buffer가 손실되거나 제대로 전달되지 않는 현상이 발생했습니다.
+
+이에 따라 WebSocket에서 binary 데이터를 안정적으로 수신하려면 `await websocket.receive_bytes()`를 사용하는 것이 표준입니다. 이 방식은 순수 binary 데이터만 직수신할 수 있어 데이터 손실 문제를 해결할 수 있습니다.
+
+| 기존 방식 | 개선 방식 |
+|-----------|-----------|
+| await websocket.receive() → dict 반환 + 불안정 | await websocket.receive_bytes() → bytes 직수신 |
+| 브라우저에서 binary chunk 보낼 때 dict key issue 있음 | binary-only stream이면 receive_bytes로 바로 받는 게 표준 |
+
+특히 AudioWorklet에서 `postMessage(channelData.buffer)` → WebSocket → FastAPI로 전달되는 binary 데이터는 무조건 `receive_bytes()`로 처리해야만 데이터 손실이 발생하지 않습니다.
+
+### 8. Docker multi-container 환경에서 Python module import 불가 문제 및 Celery task trigger로 개선
+
+FastAPI와 stt_worker를 서로 다른 Docker 컨테이너로 분리했을 때, FastAPI에서 `from stt_worker import transcribe_audio` 호출 시 Celery task trigger가 실패했습니다.
+
+#### 원인
+- Docker 컨테이너는 서로 파일 시스템을 공유하지 않기 때문에 FastAPI 컨테이너에서는 stt_worker 컨테이너의 모듈을 import할 수 없습니다.
+- 초기에는 stt_worker, analyzer_worker 자체 polling 구조 (`while True`로 Redis queue를 반복 확인)로 데이터를 가져가도록 했지만, 컨테이너 분리 이후 FastAPI에서 직접 task 호출이 불가능했습니다.
+- 또한 polling 구조는 확장성, 효율성 측면에서 한계가 있었고, Worker가 처리 중일 경우 queue backlog로만 대기하는 구조였습니다.
+
+#### 개선 및 해결
+- 현업에서는 컨테이너 간 coupling을 피하기 위해 직접 Python import 대신 Celery의 `send_task()` 메서드를 사용합니다.
+- FastAPI는 task 이름 (`"stt_worker.transcribe_audio"`)과 argument (예: bytes 데이터)를 Redis broker로 전달하고, Celery worker가 Redis queue에서 해당 task를 subscribe하여 실행합니다.
+- Celery는 내부적으로 모든 Python object (`bytes`, `str`, `dict`, `list` 등)를 직렬화(=바이트화)하여 Redis queue에 저장합니다.  
+즉, Worker가 바쁠 경우에도 task는 Redis broker queue에 안전하게 쌓여 대기하게 됩니다.
+- 이 방법으로 컨테이너 간 완벽한 독립성을 유지하며, 확장성과 안정성이 향상됩니다.
+
+```python
+# ✅ 개선된 실무형 Celery task trigger
+# FastAPI → Celery broker (Redis)로 직접 task 전달
+# audio_chunk는 bytes 객체 그대로 전달 가능
+celery_app.send_task("stt_worker.transcribe_audio", args=[audio_chunk])
+```
+추가 설명
+이전 polling 구조에서는 FastAPI → Redis audio_queue push → Worker가 r.rpop()으로 polling하여 가져갔지만,
+개선 구조에서는 send_task()로 직접 Worker에게 전달 → Worker는 바로 인자로 값을 전달받아 처리.
+따라서 개선 후에는 Redis audio_queue / text_queue를 사용할 필요가 없으며, r.lpush(), r.rpop() 코드 또한 삭제됩니다.
+Celery의 send_task()는 호출 시점에 Redis broker queue에 task를 등록하고,
+Worker가 idle 상태가 되면 queue에서 task를 가져와 바로 실행합니다.
+Redis broker queue는 실질적인 task buffer 역할을 수행합니다.
 
 ## 🖼️ 최종 프로젝트 배포 구조
 > 개발 중 `record_service`는 테스트용으로 사용했으나, 최종 배포에서는 제외
@@ -162,7 +203,6 @@ WhisperTextAnalyzer/
 │   ├── requirements.txt
 │   └── service.py
 ├── stt_worker/
-│   ├── __init__.py
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── worker.py

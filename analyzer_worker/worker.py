@@ -8,7 +8,6 @@ REDIS_PORT = 6379
 
 celery_app = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
 classifier = pipeline(
     "sentiment-analysis",
     model="distilbert/distilbert-base-uncased-finetuned-sst-2-english"
@@ -20,7 +19,7 @@ negative_count = 0
 negative_score_sum = 0.0
 
 @celery_app.task
-def analyze_text():
+def analyze_text(text):
     global positive_count, positive_score_sum, negative_count, negative_score_sum
 
     print("[Analyzer] ⏳ text_queue polling 시작")
@@ -65,7 +64,3 @@ def analyze_text():
         f"[Analyzer] 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
         f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"
     )
-
-if __name__ == "__main__":
-    while True:
-        analyze_text()
