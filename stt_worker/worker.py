@@ -1,6 +1,5 @@
 import os
 import io
-import numpy as np
 import redis
 import whisper as openai_whisper
 from celery import Celery
@@ -11,48 +10,33 @@ REDIS_PORT = 6379
 celery_app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
-#언젠가 쓸 환경변수 사용을 위해 미리사용해보
-model_size = os.getenv("MODEL_SIZE", "tiny")
+model_size = os.getenv("MODEL_SIZE", "small")
 model_path = os.getenv("MODEL_PATH", "/app/models")
-os.makedirs(model_path, exist_ok=True)   # ✅ 폴더 자동 생성
+os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
 @celery_app.task
 def transcribe_audio():
     """
-    Redis audio_queue에서 오디오 데이터를 가져와 Whisper STT로 텍스트 변환 후 text_queue에 push
+    Redis audio_queue에서 오디오 데이터를 가져와 Whisper로 STT 후 text_queue에 결과 push
     """
     print("[STT] ⏳ polling audio_queue...")
     try:
         audio_bytes = r.rpop("audio_queue")
-        if audio_bytes:
-            print(f"✅ pulled {len(audio_bytes)} bytes from Redis")
-            try:
-                result = model.transcribe(io.BytesIO(audio_bytes))
-                print(f"🎙️ Whisper result: {result['text']}")
-            except Exception as e:
-                print(f"❌ Whisper decode error: {e}")
-        else:
-            print("❌ No data pulled from Redis")
-    except Exception as e:
-        print(f"[STT] Redis error: {e}")
-        return
+        if not audio_bytes:
+            print("[STT] 💤 queue empty")
+            return
 
-    if not audio_bytes:
-        print("[STT] 💤 queue empty")
-        return
+        print(f"[STT] ✅ pulled {len(audio_bytes)} bytes from Redis")
 
-    print("[STT] 🎙️ audio found, transcribing...")
-    try:
-        audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
-        result = model.transcribe(audio_np, language="ko", fp16=False)
-        text = result["text"]
-    except Exception as e:
-        print(f"[STT] Whisper error: {e}")
-        return
+        # Whisper는 WAV file stream을 기대 → io.BytesIO 그대로 전달
+        result = model.transcribe(io.BytesIO(audio_bytes), language="ko", fp16=False)
+        text = result.get("text", "").strip()
+        print(f"[STT] 🎙️ Whisper result: {text}")
 
-    try:
+        # 결과를 text_queue에 push
         r.lpush("text_queue", text.encode())
         print(f"[STT] ✅ pushed to text_queue: {text}")
+
     except Exception as e:
-        print(f"[STT] Redis push error: {e}")
+        print(f"[STT] ❌ Error: {e}")

@@ -15,127 +15,91 @@ connected_users = set()
 html = """
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Realtime STT & Emotion Monitor</title>
-        <style>
-            body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
-            #header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #333; color: white; font-size: 1.2em; flex-wrap: wrap; }
-            #title { flex: 1; text-align: left; }
-            #startButton { min-width: 120px; margin: 0 auto; display: block; padding: 8px 16px; font-size: 1em; cursor: pointer; }
-            #people { flex: 1; text-align: right; }
-            #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
-            #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
-            button { padding: 8px 16px; font-size: 1em; cursor: pointer; }
-        </style>
-    </head>
-    <body>
-        <div id="header">
-            <div id="title">🎙️ 실시간 감정 분석</div>
-            <button id="startButton">🎙️ Start</button>
-            <div id="people">연결 인원: 0/2</div>
-        </div>
-        <div id="log"></div>
-        <div id="stats">👍 0% 0회 | 0회 0% 👎</div>
+<head>
+    <title>Realtime STT & Emotion Monitor</title>
+    <style>
+        body { font-family: Arial; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        #header { background: #333; color: white; padding: 10px; display: flex; justify-content: space-between; }
+        #log { flex: 1; overflow-y: auto; padding: 10px; }
+        #stats { background: #f2f2f2; padding: 10px; text-align: center; }
+        button { padding: 8px 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div id="header">
+    <div>🎙️ 실시간 감정 분석</div>
+    <button onclick="startRecording()">Start</button>
+</div>
+<div id="log"></div>
+<div id="stats">👍 0% 0회 | 0회 0% 👎</div>
+<script>
+let ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+let log = document.getElementById("log");
+let stats = document.getElementById("stats");
+let positive = 0, negative = 0;
 
-        <script>
-            var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-            var log = document.getElementById("log");
-            var stats = document.getElementById("stats");
-            var people = document.getElementById("people");
-            var positive = 0, negative = 0;
+ws.onmessage = e => {
+    let data = e.data;
+    let div = document.createElement("div");
+    div.textContent = data;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
 
-            document.getElementById("startButton").onclick = function() {
-                console.log("🎙️ Start button clicked");
-                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-                    console.log("🎙️ Mic stream opened");
-                    const mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.start(500);
-                    console.log("🎙️ MediaRecorder started");
+    if (data.includes("긍정")) positive++;
+    else if (data.includes("부정")) negative++;
 
-                    const audioContext = new AudioContext();
+    let total = positive + negative;
+    let pos = total ? Math.round((positive / total) * 100) : 0;
+    let neg = total ? Math.round((negative / total) * 100) : 0;
+    stats.textContent = `👍 ${pos}% ${positive}회 | ${negative}회 ${neg}% 👎`;
+};
 
-                    mediaRecorder.ondataavailable = function(e) {
-                        console.log("🎙️ Data available! size:", e.data.size);
-                        if (ws.readyState !== WebSocket.OPEN) return;
+function startRecording() {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        let ctx = new AudioContext();
+        let source = ctx.createMediaStreamSource(stream);
+        let processor = ctx.createScriptProcessor(4096, 1, 1);
 
-                        e.data.arrayBuffer().then(buffer => {
-                            audioContext.decodeAudioData(buffer, decodedData => {
-                                const samples = decodedData.getChannelData(0);
-                                const wavBuffer = encodeWAV(samples, decodedData.sampleRate);
-                                ws.send(wavBuffer);
-                                console.log("🎙️ WAV audio chunk sent");
-                            });
-                        });
-                    }
-                });
-            }
+        source.connect(processor);
+        processor.connect(ctx.destination);
 
-            function encodeWAV(samples, sampleRate) {
-                const buffer = new ArrayBuffer(44 + samples.length * 2);
-                const view = new DataView(buffer);
+        processor.onaudioprocess = e => {
+            let input = e.inputBuffer.getChannelData(0);
+            let buffer = encodeWAV(input, ctx.sampleRate);
+            if (ws.readyState === WebSocket.OPEN) ws.send(buffer);
+        };
+    });
+}
 
-                function writeString(view, offset, string) {
-                    for (let i = 0; i < string.length; i++) {
-                        view.setUint8(offset + i, string.charCodeAt(i));
-                    }
-                }
+function encodeWAV(samples, rate) {
+    let buffer = new ArrayBuffer(44 + samples.length * 2);
+    let view = new DataView(buffer);
 
-                let offset = 0;
-                writeString(view, offset, 'RIFF'); offset += 4;
-                view.setUint32(offset, 36 + samples.length * 2, true); offset += 4;
-                writeString(view, offset, 'WAVE'); offset += 4;
-                writeString(view, offset, 'fmt '); offset += 4;
-                view.setUint32(offset, 16, true); offset += 4;
-                view.setUint16(offset, 1, true); offset += 2;
-                view.setUint16(offset, 1, true); offset += 2;
-                view.setUint32(offset, sampleRate, true); offset += 4;
-                view.setUint32(offset, sampleRate * 2, true); offset += 4;
-                view.setUint16(offset, 2, true); offset += 2;
-                view.setUint16(offset, 16, true); offset += 2;
-                writeString(view, offset, 'data'); offset += 4;
-                view.setUint32(offset, samples.length * 2, true); offset += 4;
+    function writeStr(v, o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); }
 
-                for (let i = 0; i < samples.length; i++, offset += 2) {
-                    const s = Math.max(-1, Math.min(1, samples[i]));
-                    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                }
+    writeStr(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeStr(view, 8, 'WAVEfmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
 
-                return buffer;
-            }
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+        let s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
 
-            ws.onmessage = function(event) {
-                var data = event.data;
-                if (data.startsWith("PEOPLE:")) {
-                    people.textContent = "연결 인원: " + data.replace("PEOPLE:", "");
-                    return;
-                }
-                if (data.startsWith("ALERT:")) {
-                    alert(data.replace("ALERT:", ""));
-                    return;
-                }
-                var div = document.createElement("div");
-                div.textContent = data;
-                log.appendChild(div);
-                log.scrollTop = log.scrollHeight;
-
-                if (data.includes("긍정")) positive++;
-                else if (data.includes("부정")) negative++;
-
-                let total = positive + negative;
-                let pos_ratio = total > 0 ? Math.round((positive / total) * 100) : 0;
-                let neg_ratio = total > 0 ? Math.round((negative / total) * 100) : 0;
-
-                stats.textContent = `👍 ${pos_ratio}% ${positive}회 | ${negative}회 ${neg_ratio}% 👎`;
-            }
-
-            ws.onclose = function() {
-                var div = document.createElement("div");
-                div.textContent = "[Disconnected]";
-                div.style.color = "red";
-                log.appendChild(div);
-            }
-        </script>
-    </body>
+    return buffer;
+}
+</script>
+</body>
 </html>
 """
 
@@ -148,45 +112,18 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         r.ping()
     except redis.ConnectionError:
-        await websocket.close(code=1000)
-        return
-
-    if len(connected_users) >= 2:
-        await websocket.close(code=1000)
+        await websocket.close()
         return
 
     await websocket.accept()
     connected_users.add(websocket)
 
-    for ws in connected_users:
-        await ws.send_text(f"PEOPLE:{len(connected_users)}/2")
-
-    inactivity_timeout = 1800
-    idle_timeout = 600
-    last_active = asyncio.get_event_loop().time()
-
     try:
         while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_bytes(), timeout=10)
-                last_active = asyncio.get_event_loop().time()
-                try:
-                    r.lpush("audio_queue", data)
-                    await websocket.send_text(f"Audio chunk size: {len(data)} bytes")
-                except redis.ConnectionError:
-                    await websocket.send_text("ALERT:서버가 불안정해서 연결을 끊습니다.")
-                    break
-            except asyncio.TimeoutError:
-                now = asyncio.get_event_loop().time()
-                if now - last_active > inactivity_timeout:
-                    await websocket.send_text("ALERT:30분이 지나서 연결을 끊습니다.")
-                    break
-                if now - last_active > idle_timeout:
-                    await websocket.send_text("ALERT:10분 이상 말이 없어서 연결을 끊습니다.")
-                    break
+            data = await websocket.receive_bytes()
+            r.lpush("audio_queue", data)
+            await websocket.send_text(f"chunk: {len(data)} bytes")
     except WebSocketDisconnect:
         pass
     finally:
         connected_users.remove(websocket)
-        for ws in connected_users:
-            await ws.send_text(f"PEOPLE:{len(connected_users)}/2")
