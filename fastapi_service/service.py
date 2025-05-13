@@ -70,7 +70,7 @@ function startRecording() {
         };
     });
 }
-
+<!-- webm형식 데이터를 wav로 변환 -->
 function encodeWAV(samples, rate) {
     let buffer = new ArrayBuffer(44 + samples.length * 2);
     let view = new DataView(buffer);
