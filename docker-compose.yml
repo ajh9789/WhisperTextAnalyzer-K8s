@@ -5,7 +5,6 @@ services:
     ports:
       - "6379:6379"
     restart: always
-
   stt_worker:
     build:
       context: ./stt_worker
