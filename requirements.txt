@@ -1,9 +1,9 @@
 celery==5.3.6
 fastapi==0.115.12
 numpy==2.2.5
+openai_whisper==20240930
 redis==5.0.4
 scipy==1.15.3
 sounddevice==0.4.6
 transformers==4.40.1
-whisper==1.1.10
-torch==2.0.1
+torch==2.2.2
