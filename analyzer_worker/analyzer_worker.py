@@ -19,7 +19,7 @@ negative_count = 0
 negative_score_sum = 0.0
 
 @celery.task
-def analyze_text(text):
+def analyzer_text(text):
     global positive_count, positive_score_sum, negative_count, negative_score_sum
     print("[STT] → [Analyzer] Celery 전달 text 수신")
     try:

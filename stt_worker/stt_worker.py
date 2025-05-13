@@ -28,5 +28,5 @@ def transcribe_audio(audio_bytes):
 
     text = result.get("text", "").strip()
     print(f"[STT] 🎙️ Whisper STT 결과: {text}")
-    celery.send_task("analyzer_worker.analyze_text", args=[text])
+    celery.send_task("analyzer_worker.analyzer_text", args=[text])
     print(f"[STT] ✅ analyzer_worker 호출 완료: {text}")

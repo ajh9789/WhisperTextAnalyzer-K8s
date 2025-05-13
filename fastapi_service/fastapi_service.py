@@ -159,7 +159,7 @@ async def websocket_endpoint(websocket: WebSocket):
             audio_chunk = await websocket.receive_bytes()
             print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
             celery.send_task("stt_worker.transcribe_audio", args=[audio_chunk])
-            print("🎯 Redis audio_queue에 push, sst_work 호출 완료")
+            print("🎯 Redis audio_queue에 push, stt_worker 호출 완료")
     except WebSocketDisconnect:
         print("❌ WebSocket 연결 끊김")
     except Exception as e:
