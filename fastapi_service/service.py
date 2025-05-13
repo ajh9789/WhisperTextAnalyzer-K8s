@@ -142,7 +142,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 last_active = asyncio.get_event_loop().time()
                 try:
                     r.lpush("audio_queue", data)
-                    await websocket.send_text("✅ Audio chunk received")
+                    await websocket.send_text(f"Audio chunk size: {len(data)} bytes")  # ✅ 요기만 변경
                 except redis.ConnectionError:
                     await websocket.send_text("ALERT:서버가 불안정해서 연결을 끊습니다.")
                     break
