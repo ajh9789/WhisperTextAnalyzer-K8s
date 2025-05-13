@@ -21,20 +21,9 @@ negative_score_sum = 0.0
 @celery_app.task
 def analyze_text(text):
     global positive_count, positive_score_sum, negative_count, negative_score_sum
-
-    print("[Analyzer] ⏳ text_queue polling 시작")
+    print("[STT] → [Analyzer] Celery 전달 text 수신")
     try:
-        text = r.rpop("text_queue")
-    except Exception as e:
-        print(f"[Analyzer] Redis error: {e}")
-        return
-
-    if not text:
-        print("[Analyzer] 💤 text_queue 비어있음")
-        return
-
-    try:
-        decoded_text = text.decode()
+        decoded_text = text
         print(f"[Analyzer] 🎙️ 텍스트 수신: {decoded_text}")
         result = classifier(decoded_text)[0]
     except Exception as e:

@@ -185,6 +185,44 @@ Celery의 send_task()는 호출 시점에 Redis broker queue에 task를 등록�
 Worker가 idle 상태가 되면 queue에서 task를 가져와 바로 실행합니다.
 Redis broker queue는 실질적인 task buffer 역할을 수행합니다.
 
+### 9. Celery 호출식 직렬화 및 Redis broker 역할 정리
+
+FastAPI → STT worker, STT worker → Analyzer worker 호출 시 Celery의 send_task() 메서드를 사용합니다.
+
+Celery는 task 호출 시 Python object (예: str, list 등)를 자동으로 JSON 직렬화하여 Redis broker에 저장합니다.
+
+Redis는 단순 queue 역할만 하며, 데이터 내용을 변형하거나 해석하지 않습니다.
+
+✅ 핵심 요약  
+직렬화(serialize)와 복원(deserialize)은 Celery가 전부 알아서 처리한다.  
+Redis는 그저 저장소 역할만 한다.  
+Worker 함수 안에서는 Python object (str, list 등)로 이미 복원된 인자를 받는다.
+
+Worker는 Redis에서 task를 가져올 때, Celery가 JSON을 디코드하여 Python object로 복원한 후 task 함수를 호출합니다.
+
+따라서 Worker 함수(analyze_text 등)는 항상 Python native object를 인자로 전달받습니다. (ex. str, list 등)
+
+---
+
+#### ✅ 주요 정리
+
+| 구간 | 역할 | 특징 |
+|------|------|------|
+| FastAPI → Celery Broker | JSON 직렬화 | Python object → JSON bytes 변환 후 Redis에 저장 |
+| Redis Broker | 데이터 저장 | 아무것도 변형하지 않고 저장만 함 |
+| Celery Worker → Task | JSON 디코드 | Redis에서 읽은 후 Python object로 복원 |
+
+FastAPI에서 Celery로 넘기는 audio_chunk는 bytes이고,  
+STT에서 Analyzer로 넘기는 text는 string입니다.
+
+string은 JSON 직렬화/복원이 자연스럽기 때문에 base64 변환이 필요 없습니다.
+
+결과적으로 analyze_text(text)의 text는 str이기 때문에 .decode()를 호출할 필요가 없습니다.
+
+listener_service처럼 Redis pubsub을 직접 다루는 경우에는 message["data"].decode()를 해줘야 하지만,  
+Celery task로 받은 데이터는 이미 복원된 Python object라 decode 없이 그대로 사용해야 합니다.
+
+
 ## 🖼️ 최종 프로젝트 배포 구조
 > 개발 중 `record_service`는 테스트용으로 사용했으나, 최종 배포에서는 제외
 
