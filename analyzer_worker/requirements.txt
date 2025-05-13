@@ -1,5 +1,5 @@
+torch==2.2.2+cpu
 celery==5.3.6
 redis==5.0.4
 transformers==4.40.1
-torch==2.2.2+cpu
 -f https://download.pytorch.org/whl/torch_stable.html
