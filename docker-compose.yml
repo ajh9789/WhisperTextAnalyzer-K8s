@@ -4,10 +4,12 @@ services:
     ports:
       - "6379:6379"
     restart: always
+
   stt_worker:
     build:
       context: ./stt_worker
-    command: [ "celery", "-A", "stt_worker:celery", "worker", "-Q", "stt_queue", "--loglevel=info" ]
+    command: >
+      celery -A stt_worker:celery worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -18,7 +20,8 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: ["celery", "-A", "analyzer_worker:celery", "worker", "-Q", "analyzer_queue", "--loglevel=info"]
+    command: >
+      celery -A analyzer_worker:celery worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -42,29 +45,20 @@ services:
       context: ./fastapi_service
     ports:
       - "8000:8000"
+    command: >
+      uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
     depends_on:
       - redis
     restart: always
-    command: ["uvicorn", "fastapi_service:app", "--host", "0.0.0.0", "--port", "8000"]
+
 # ✅ 리눅스 배포 시 실행 명령어 예시
-# docker-compose up --scale stt_worker=2 -d
+# docker compose up --scale stt_worker=2 -d
 
 # ==========================
 # ✅ 설명
-# - stt_worker 단일 서비스 정의
-# - 배포 시 컨테이너 개수 조절 (--scale)
-# - 윈도우용 pool=solo 제거 → 리눅스 최적화 완성
-# 윈도우용 --concurrency=1 --pool=solo
-
-#  recorder_service:
-#    build:
-#      context: ./recorder_service
-#    command: python3 recorder_service.py
-#    environment:
-#      - REDIS_HOST=redis
-#      - DOCKER=1
-#    depends_on:
-#      - redis
+# - 모든 worker의 -Q 제거 → 기본 "celery" queue 사용
+# - 개발/테스트 환경에서는 가장 안정적 (queue 충돌 위험 없음)
+# - 컨테이너 개수 조절 가능 (--scale)
