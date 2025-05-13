@@ -1,9 +1,13 @@
-celery==5.3.6
-fastapi==0.115.12
+torch==2.2.2+cpu
+openai-whisper==20240930
 numpy==2.2.5
-openai_whisper==20240930
 redis==5.0.4
-scipy==1.15.3
+celery==5.3.6
+transformers==4.40.0
+huggingface-hub==0.23.0
+fastapi==0.115.12
+uvicorn==0.29.0
 sounddevice==0.4.6
-transformers==4.40.1
-torch==2.2.2
+scipy==1.13.0
+
+-f https://download.pytorch.org/whl/torch_stable.html
