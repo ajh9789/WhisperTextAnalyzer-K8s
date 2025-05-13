@@ -115,7 +115,7 @@ html = """
                         }
                         energy = energy / channelData.length;
 
-                        if (energy < 0.0001) {
+                        if (energy < 0.00005) {
                         // ✅ 무음 frame → 건너뜀
                             return true;
                         }
@@ -137,7 +137,6 @@ html = """
 async def get():
     return HTMLResponse(html)
 
-
 @service.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
@@ -154,16 +153,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive()
-            if "bytes" in data and data["bytes"]:
-                audio_chunk = data["bytes"]
-                print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
-                r.lpush("audio_queue", audio_chunk)
-                print("🎯 Redis audio_queue에 push 완료")
-            elif "text" in data and data["text"]:
-                print(f"📄 WebSocket text data 수신: {data['text']}")
-            else:
-                print("❓ 알 수 없는 WebSocket 데이터 수신:", data)
+            # ✅ 핵심 수정: receive_bytes로 바로 받기
+            audio_chunk = await websocket.receive_bytes()
+            print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
+            r.lpush("audio_queue", audio_chunk)
+            print("🎯 Redis audio_queue에 push 완료")
     except WebSocketDisconnect:
         print("❌ WebSocket 연결 끊김")
     except Exception as e:
