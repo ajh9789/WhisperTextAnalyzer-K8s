@@ -65,3 +65,7 @@ def analyze_text():
         f"[Analyzer] 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
         f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"
     )
+
+if __name__ == "__main__":
+    while True:
+        analyze_text()

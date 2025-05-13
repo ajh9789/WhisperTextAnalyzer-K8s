@@ -41,3 +41,7 @@ def transcribe_audio():
 
     except Exception as e:
         print(f"[STT] ❌ Error: {e}")
+
+if __name__ == "__main__":
+    while True:
+        transcribe_audio()
