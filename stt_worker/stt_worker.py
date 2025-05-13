@@ -21,12 +21,11 @@ model = openai_whisper.load_model(model_size, download_root=model_path)
 def transcribe_audio(audio_bytes):
     print("FastAPI → Celery 전달 audio_chunk 수신")
     audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
-
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
         write(tmpfile.name, 16000, audio_np)
         result = model.transcribe(tmpfile.name, language="ko", fp16=False)
 
     text = result.get("text", "").strip()
     print(f"[STT] 🎙️ Whisper STT 결과: {text}")
-    celery.send_task("analyzer_worker.analyzer_text", args=[text])
+    celery.send_task("analyzer_worker.analyzer_text", args=[text], queue="analyzer_queue")
     print(f"[STT] ✅ analyzer_worker 호출 완료: {text}")
