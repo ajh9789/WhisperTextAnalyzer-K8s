@@ -353,7 +353,7 @@ venv
 
 실제 실무에서도 이 구조가 **가장 표준적이며 추천되는 방법**입니다.
 
-### 11. openai-whisper 패키지 충돌 문제 및 실무 해결 방법
+### 12. openai-whisper 패키지 충돌 문제 및 실무 해결 방법
 
 본 프로젝트 개발 중 가장 큰 장애 중 하나였던 문제입니다.  
 처음에 `whisper==1.1.10` 패키지를 설치했더니 아래와 같은 심각한 충돌이 발생했습니다.
@@ -372,8 +372,7 @@ pypi.org 기준, whisper==1.1.10은 openai whisper가 아닌
 ---
 
 #### ✅ 문제 상황
-
-초기 실수
+openai-whisper 패키지 문제
 ```bash
 pip install whisper==1.1.10
 ```
