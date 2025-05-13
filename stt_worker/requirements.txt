@@ -1,5 +1,4 @@
 celery==5.3.6
-numpy==2.2.5
 redis==5.0.4
 torch==2.2.2+cpu
 openai_whisper==20240930
