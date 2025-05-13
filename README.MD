@@ -1,8 +1,13 @@
-## 📌 프로젝트 개요 
+# WhisperTextAnalyzer
+
 WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 감정 분석을 수행하는 End-to-End 파이프라인 시스템입니다.
 
-- 클라이언트 브라우저에서 **Web Audio API (ScriptProcessorNode)**로 마이크 입력을 캡처하여 FastAPI 서버로 전송
-- **FastAPI WebSocket 서버**가 오디오 데이터를 수신 후 Redis audio_queue에 저장
+---
+
+## 📌 프로젝트 개요
+
+- 클라이언트 브라우저에서 **MediaRecorder (Web Audio API 기반)**로 마이크 입력을 캡처하여 FastAPI 서버로 전송
+- **FastAPI WebSocket 서버**가 오디오 Blob 데이터를 수신 후 Redis audio_queue에 저장
 - **stt_worker (Celery Worker)**가 audio_queue 데이터를 가져와 **OpenAI Whisper 모델**로 STT (Speech-to-Text) 변환
 - 텍스트를 Redis text_queue로 전달
 - **analyzer_worker (Celery Worker)**가 text_queue의 텍스트를 **transformers 기반 감정 분석 모델**(`distilbert-base-uncased-finetuned-sst-2-english`)로 분석
@@ -10,10 +15,13 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 - **listener 서비스**가 result_channel을 구독하여 결과 및 통계 정보를 파일(`result_listener.log`) + 콘솔에 출력
 - 최종적으로 사용자는 Web UI에서 실시간으로 자신의 음성 텍스트 + 감정 분석 결과를 확인 가능
 
+---
+
+## 🛠️ 시스템 아키텍처
 
 ## 🛠️ 시스템 아키텍처
 ````
-Client (브라우저: Web Audio → WebSocket)
+Client (브라우저: MediaRecorder → WebSocket) //(loacl test는 recorder 서비스)
 ↓
 FastAPI 서비스 (audio_queue로 Redis push)
 ↓
@@ -31,14 +39,15 @@ listener (result_channel 구독 → 콘솔 + 파일로 출력)
 ---
 
 ## ⚙️ 주요 기술 스택
+
 - FastAPI + WebSocket
-- Web Audio API (ScriptProcessorNode 기반)
+- MediaRecorder (Web Audio API 기반)
 - Redis (Queue + Pub/Sub)
 - Celery (비동기 Worker 관리)
 - Whisper (STT 모델, OpenAI Whisper 기반)
 - Huggingface Transformers (`distilbert-base-uncased-finetuned-sst-2-english` 감정 분석)
 - Docker + Docker Compose
-
+- 
 ---
 
 ## 🧩 개발 중 겪었던 문제 및 해결 방법
@@ -50,7 +59,7 @@ listener (result_channel 구독 → 콘솔 + 파일로 출력)
   - worker 파일명을 `stt_worker.py`, `analyzer_worker.py` 등으로 명확하게 설정 (절대 whisper.py 쓰지 않음)
   - Celery 실행 시 `celery -A stt_worker:celery_app worker --concurrency=1 --pool=solo`로 정확하게 모듈 지정
 - **추가 안전책**
-  - 코드에서 import 혼동 방지를 위해 `import whisper as openai_whisper`로 통일
+  - 코드에서 import 혼동 방지를 위해 `import whisper as openai_whisper`로 변경
 
 ### 2. Windows 환경 개발 시 제한 사항
 
@@ -97,11 +106,15 @@ listener (result_channel 구독 → 콘솔 + 파일로 출력)
 - **변환 과정의 주요 문제점**
   - 실시간 스트림 데이터는 연속 버퍼로 들어와 **실시간 downsample이 까다로움**
   - Python `sounddevice`, `scipy.signal.resample_poly()` 등을 통해 변환 로직을 직접 구현
-  - 데이터 지연(Latency)을 최소화하기 위해 **최적의 버퍼 크기**와 **변환 속도**를 지속적으로 튜닝
-- **최종 해결 방법**
-  - 클라이언트 → 서버 전달 직후 `resample_poly()`로 **44.1kHz → 16kHz** 변환
-  - STT 모델로 전달 전 항상 **16kHz로 표준화**
-  - 테스트 과정에서 최적 버퍼 크기와 처리 주기를 조정하여 **실시간성 + 안정성 모두 확보*
+- **기존 방식**:
+  - ScriptProcessorNode 방식에서는 AudioContext sampleRate mismatch, small frame size 문제 등으로 **실제 Redis에 데이터가 안 들어가는 문제** 발생
+- **최종 개선**: 
+  - **MediaRecorder API로 개선**
+  - 500ms마다 안정적인 Blob 데이터를 생성 → WebSocket으로 전송 → FastAPI 서버에서 그대로 Redis push
+- **결과**
+  - 실시간성 + 안정성 모두 확보
+  - 데이터 손실 문제 해결
+
 
 ### 5. HTTPS 인증 관련 이슈 (브라우저 마이크 권한)
 - 실서버 배포 시 HTTPS가 없으면 브라우저가 마이크 접근 차단
@@ -155,3 +168,24 @@ WhisperTextAnalyzer/
 
 # 📢 주의사항
 - 본 프로젝트는 학습 및 데모용이며, 실제 상용 서비스 배포 시 HTTPS/인증/보안 설정이 필수입니다.
+
+````
+[User Browser]
+ └─ getUserMedia + AudioWorklet (16000Hz PCM buffer)
+      ↓
+      ↓ WebSocket send (real-time)
+[FastAPI Service]
+ └── WebSocket → Redis audio_queue에 push
+
+[stt_worker]
+ └── Redis audio_queue pop → WAV 변환 → Whisper STT → Redis text_queue
+
+[analyzer_worker]
+ └── Redis text_queue pop → Sentiment 분석 → Redis result_channel publish
+
+[listener_service]
+ └── Redis result_channel listen → 로그/콘솔 출력
+````
+
+
+

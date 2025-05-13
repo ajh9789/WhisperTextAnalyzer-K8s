@@ -1,6 +1,5 @@
 import os
 import redis
-import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
@@ -45,51 +44,69 @@ html = """
         <div id="stats">👍 0% 0회 | 0회 0% 👎</div>
 
         <script>
-            var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-            var log = document.getElementById("log");
-            var stats = document.getElementById("stats");
-            var people = document.getElementById("people");
-            var positive = 0, negative = 0;
+            let ws = null;
+            let log = document.getElementById("log");
+            let stats = document.getElementById("stats");
+            let people = document.getElementById("people");
+            let positive = 0, negative = 0;
 
-            document.getElementById("startButton").onclick = function() {
-                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-                    const mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.start(500);  // ✅ 500ms 단위로 안정적 chunk 전송
-
-                    mediaRecorder.ondataavailable = function(e) {
-                        if (ws.readyState === WebSocket.OPEN) {
-                            ws.send(e.data);   // ✅ Blob 데이터 바로 전송
-                        }
-                    }
-                });
-            };
-
-            ws.onmessage = function(event) {
-                var data = event.data;
-                if (data.startsWith("PEOPLE:")) {
-                    people.textContent = "연결 인원: " + data.replace("PEOPLE:", "");
-                    return;
+            document.getElementById("startButton").onclick = async function() {
+                ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+                ws.onopen = async () => {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const ctx = new AudioContext({ sampleRate: 16000 });
+                    const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
+                    const blobURL = URL.createObjectURL(blob);
+                    await ctx.audioWorklet.addModule(blobURL);
+                    const src = ctx.createMediaStreamSource(stream);
+                    const worklet = new AudioWorkletNode(ctx, 'audio-processor');
+                    worklet.port.onmessage = (e) => {
+                        if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                    };
+                    src.connect(worklet).connect(ctx.destination);
                 }
-                var div = document.createElement("div");
-                div.textContent = data;
-                log.appendChild(div);
-                log.scrollTop = log.scrollHeight;
 
-                if (data.includes("긍정")) positive++;
-                else if (data.includes("부정")) negative++;
+                ws.onmessage = function(event) {
+                    var data = event.data;
+                    if (data.startsWith("PEOPLE:")) {
+                        people.textContent = "연결 인원: " + data.replace("PEOPLE:", "");
+                        return;
+                    }
+                    var div = document.createElement("div");
+                    div.textContent = data;
+                    log.appendChild(div);
+                    log.scrollTop = log.scrollHeight;
 
-                var total = positive + negative;
-                var pos = total ? Math.round((positive / total) * 100) : 0;
-                var neg = total ? Math.round((negative / total) * 100) : 0;
-                stats.textContent = `👍 ${pos}% ${positive}회 | ${negative}회 ${neg}% 👎`;
+                    if (data.includes("긍정")) positive++;
+                    else if (data.includes("부정")) negative++;
+
+                    var total = positive + negative;
+                    var pos = total ? Math.round((positive / total) * 100) : 0;
+                    var neg = total ? Math.round((negative / total) * 100) : 0;
+                    stats.textContent = `👍 ${pos}% ${positive}회 | ${negative}회 ${neg}% 👎`;
+                };
+
+                ws.onclose = function() {
+                    var div = document.createElement("div");
+                    div.textContent = "[Disconnected]";
+                    div.style.color = "red";
+                    log.appendChild(div);
+                };
             };
 
-            ws.onclose = function() {
-                var div = document.createElement("div");
-                div.textContent = "[Disconnected]";
-                div.style.color = "red";
-                log.appendChild(div);
-            };
+        </script>
+        <script type="worklet">
+            class AudioProcessor extends AudioWorkletProcessor {
+                process(inputs, outputs, parameters) {
+                    const input = inputs[0];
+                    if (input.length > 0) {
+                        const channelData = input[0];
+                        this.port.postMessage(channelData.buffer, [channelData.buffer]);
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('audio-processor', AudioProcessor);
         </script>
     </body>
 </html>
@@ -112,11 +129,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive()
-            audio_chunk = data.get("bytes")
-            if audio_chunk:
-                r.lpush("audio_queue", audio_chunk)
-                await websocket.send_text(f"✅ Audio chunk received: {len(audio_chunk)} bytes")
+            data = await websocket.receive_bytes()
+            r.lpush("audio_queue", data)
     except WebSocketDisconnect:
         pass
     finally:
