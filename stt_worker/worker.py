@@ -1,4 +1,5 @@
 import os
+import io
 import numpy as np
 import redis
 import whisper as openai_whisper
@@ -24,6 +25,15 @@ def transcribe_audio():
     print("[STT] ⏳ polling audio_queue...")
     try:
         audio_bytes = r.rpop("audio_queue")
+        if audio_bytes:
+            print(f"✅ pulled {len(audio_bytes)} bytes from Redis")
+            try:
+                result = model.transcribe(io.BytesIO(audio_bytes))
+                print(f"🎙️ Whisper result: {result['text']}")
+            except Exception as e:
+                print(f"❌ Whisper decode error: {e}")
+        else:
+            print("❌ No data pulled from Redis")
     except Exception as e:
         print(f"[STT] Redis error: {e}")
         return
