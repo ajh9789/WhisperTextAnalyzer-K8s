@@ -52,16 +52,26 @@ html = """
             var positive = 0, negative = 0;
 
             document.getElementById("startButton").onclick = function() {
-                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-                    const mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.start(500);
-                    mediaRecorder.ondataavailable = function(e) {
-                        if (ws.readyState === WebSocket.OPEN) {
-                            ws.send(e.data);
-                        }
-                    }
-                });
+            console.log("🎙️ Start button clicked");
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+            console.log("🎙️ Mic stream opened");
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start(500);
+            console.log("🎙️ MediaRecorder started");
+
+            mediaRecorder.ondataavailable = function(e) {
+            console.log("🎙️ Data available! size:", e.data.size);
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(e.data);
+                console.log("🎙️ Audio chunk sent");
+            } else {
+                console.log("❌ WebSocket not open");
+               }
             }
+          }).catch(function(err) {
+          console.error("❌ getUserMedia error:", err);
+       });
+}
 
             ws.onmessage = function(event) {
                 var data = event.data;
