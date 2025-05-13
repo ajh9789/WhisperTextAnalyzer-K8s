@@ -14,7 +14,6 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 - 분석 결과는 Redis PubSub의 result_channel로 publish
 - **listener 서비스**가 result_channel을 구독하여 결과 및 통계 정보를 파일(`result_listener.log`) + 콘솔에 출력
 - 최종적으로 사용자는 Web UI에서 실시간으로 자신의 음성 텍스트 + 감정 분석 결과를 확인 가능
-
 ---
 
 ## 🛠️ 시스템 아키텍처
@@ -33,9 +32,6 @@ analyzer_worker (Celery + transformers 감정 분석 → result_channel로 publi
 ↓
 listener (result_channel 구독 → 콘솔 + 파일로 출력)
 ````
-
-
-
 ---
 
 ## ⚙️ 주요 기술 스택
@@ -287,37 +283,198 @@ string은 JSON 직렬화/복원이 자연스럽기 때문에 base64 변환이 �
 listener_service처럼 Redis pubsub을 직접 다루는 경우에는 message["data"].decode()를 해줘야 하지만,  
 Celery task로 받은 데이터는 이미 복원된 Python object라 decode 없이 그대로 사용해야 합니다.
 
+### 11. Docker build context + COPY 명령어 동작 원리 + 실무 파일 구조 예시
+
+실무에서 Dockerfile을 작성할 때, `COPY` 명령어는 **Docker build context**를 기준으로 작동합니다.  
+Docker build context는 `docker-compose.yml` 또는 `docker build` 명령어에서 지정합니다.
+
+```Dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN pip install --upgrade pip
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+```
+
+---
+
+#### ✅ 원리
+
+1️⃣ `WORKDIR /app` → 이후 모든 작업 경로는 컨테이너 내부 `/app`으로 고정됨  
+2️⃣ `COPY requirements.txt .` → build context 기준으로 `requirements.txt`만 복사  
+3️⃣ `COPY . .` → build context 내 **모든 파일, 폴더**를 `/app`으로 복사
+
+✅ build context = `./stt_worker`라면 컨테이너 안 `/app` 구조는 다음과 같음:
+
+```plaintext
+/app/
+├── requirements.txt
+├── sst_worker.py
+```
+
+(`Dockerfile`은 build용 파일이라 컨테이너로 복사되지 않음)
+
+---
+
+#### ✅ 주의사항
+
+| 상황 | 결과 |
+|------|------|
+| build context 외부 파일 (`../some_file`) | 복사 불가 |
+| 숨김 파일 (`.env`, `.gitignore`, 등) | 포함됨 (단, `.dockerignore`로 제외 가능) |
+| COPY . . | build context의 전체 파일 + 폴더 복사 |
+| Dockerfile | 포함 안 됨 |
+
+실무에서는 꼭 `.dockerignore` 파일을 만들어 제외할 항목을 설정해야 합니다.
+
+예시:
+```plaintext
+# .dockerignore 예시
+.git
+__pycache__
+*.pyc
+venv
+.idea
+```
+
+이를 통해 **이미지 용량을 최소화**하고, 불필요한 파일이 포함되지 않도록 할 수 있습니다.
+
+---
+
+#### ✅ 결론
+
+```plaintext
+당신 상황에서 build context = ./stt_worker 이므로
+컨테이너 /app 안에는 requirements.txt + sst_worker.py 두 파일만 들어간다.
+```
+
+실제 실무에서도 이 구조가 **가장 표준적이며 추천되는 방법**입니다.
+
+### 11. openai-whisper 패키지 충돌 문제 및 실무 해결 방법
+
+본 프로젝트 개발 중 가장 큰 장애 중 하나였던 문제입니다.  
+처음에 `whisper==1.1.10` 패키지를 설치했더니 아래와 같은 심각한 충돌이 발생했습니다.
+
+```plaintext
+import whisper as openai_whisper → AttributeError, ModuleNotFoundError
+```
+
+이유:
+```
+pypi.org 기준, whisper==1.1.10은 openai whisper가 아닌
+완전히 다른 Graphite metrics 툴 whisper 패키지였습니다.
+(진짜 전세계 Python 개발자들이 낚이는 classic 문제)
+```
+
+---
+
+#### ✅ 문제 상황
+
+초기 실수
+```bash
+pip install whisper==1.1.10
+```
+
+→ 완전히 엉뚱한 패키지가 설치됨 → openai whisper 모델 사용 불가
+
+→ 해당 문제로 약 하루 이상 디버깅 소요됨
+
+---
+
+#### ✅ 최종 실무 해결 방법
+
+아래와 같이 `openai-whisper` 패키지 최신 버전을 명확하게 설치해야만 했습니다.
+
+최종 requirements.txt 조합:
+```plaintext
+numpy==1.26.4
+scipy==1.13.0
+celery==5.3.6
+redis==5.0.4
+fastapi==0.115.2
+uvicorn[standard]==0.29.0
+torch==2.2.2+cpu
+openai_whisper==20240930
+-f https://download.pytorch.org/whl/torch_stable.html
+```
+
+핵심 포인트:
+- `openai_whisper==20240930` → 진짜 openai whisper 최신 안정 버전
+- `torch==2.2.2+cpu` + pytorch wheel source 명시 → 안정적인 CPU 버전 설치
+- 실무에서도 가장 안정적인 whisper + pytorch 조합
+
+---
+
+#### ✅ 실무 팁
+
+또는 실무에서는 아래처럼도 많이 설치합니다.
+```bash
+pip install openai-whisper
+```
+→ `openai-whisper==2024xxxx` 최신 버전 자동 설치
+
+하지만 연구/배포 환경에서는 항상 명확한 버전 고정을 권장합니다.
+
+---
+
+#### ✅ 발표/문서 주의 포인트
+
+```plaintext
+whisper 패키지는 반드시 openai-whisper로 명확하게 지정해야 합니다.
+whisper==1.1.10 절대 설치 금지 → 전혀 다른 패키지입니다.
+```
+
+이 문제를 직접 디버깅하고 해결하는 과정에서 실제 실무 수준의 troubleshooting 경험을 할 수 있었습니다.  
+→ 실무 인터뷰, 발표에서 강조 포인트로 추천합니다.
+
+---
+
+
+
+
+---
 
 ## 🖼️ 최종 프로젝트 배포 구조
-> 개발 중 `record_service`는 테스트용으로 사용했으나, 최종 배포에서는 제외
-
-````
+>✅ 기준: 2024-05-14 최종 프로젝트 구조 기준  
+>✅ 이 구조는 Docker + Celery + FastAPI + Redis + Listener + Recorder + Analyzer 서비스 분리 구조입니다.  
+>✅ 각 서비스는 독립적인 Dockerfile + requirements.txt를 가집니다.  
+>✅ 개발 중 `record_service`는 로컬 테스트용으로 사용했으나, 최종 배포에서는 제외
+```plaintext
 WhisperTextAnalyzer/
 ├── analyzer_worker/
 │   ├── Dockerfile
-│   ├── requirements.txt
-│   └── worker.py
+│   ├── analyze_worker.py
+│   └── requirements.txt
 ├── fastapi_service/
 │   ├── Dockerfile
-│   ├── requirements.txt
-│   └── service.py
+│   ├── fastapi_service.py
+│   └── requirements.txt
 ├── listener_service/
 │   ├── Dockerfile
-│   ├── requirements.txt
-│   └── service.py
+│   ├── listener_service.py
+│   └── requirements.txt
+├── recorder_service/
+│   ├── Dockerfile
+│   ├── recorder_service.py
+│   └── requirements.txt
 ├── stt_worker/
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   └── worker.py
+│   └── sst_worker.py
+├── venv/ (가상환경 폴더)
 ├── .dockerignore
 ├── .gitignore
 ├── docker-compose.yml
 ├── README.md
-└── requirements.txt
-````
-
+└── requirements.txt (root requirements 파일)
+```
+---
 
 ## ✨ 최종 소감
+- 아직 완벽한 MSA는 아니지만, MSA 느낌으로 컨테이너/서비스 분리를 시도했다.
 - **Python 환경 (Windows vs Linux)** 차이를 직접 경험하며 배웠음
 - 실시간 WebSocket 오디오 스트림 처리의 어려움을 체험
 - Whisper 모델이 기대하는 오디오 포맷(WAV, 16kHz, mono)을 맞추는 게 얼마나 까다로운지 이해
@@ -328,24 +485,3 @@ WhisperTextAnalyzer/
 
 # 📢 주의사항
 - 본 프로젝트는 학습 및 데모용이며, 실제 상용 서비스 배포 시 HTTPS/인증/보안 설정이 필수입니다.
-
-````
-[User Browser]
- └─ getUserMedia + AudioWorklet (16000Hz PCM buffer)
-      ↓
-      ↓ WebSocket send (real-time)
-[FastAPI Service]
- └── WebSocket → Redis audio_queue에 push
-
-[stt_worker]
- └── Redis audio_queue pop → WAV 변환 → Whisper STT → Redis text_queue
-
-[analyzer_worker]
- └── Redis text_queue pop → Sentiment 분석 → Redis result_channel publish
-
-[listener_service]
- └── Redis result_channel listen → 로그/콘솔 출력
-````
-
-
-

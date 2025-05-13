@@ -6,16 +6,6 @@ services:
       - "6379:6379"
     restart: always
 
-#  recorder_service:
-#    build:
-#      context: ./recorder_service
-#    command: python3 recorder_service.py
-#    environment:
-#      - REDIS_HOST=redis
-#      - DOCKER=1
-#    depends_on:
-#      - redis
-
   stt_worker:
     build:
       context: ./stt_worker
@@ -70,3 +60,13 @@ services:
 # - 배포 시 컨테이너 개수 조절 (--scale)
 # - 윈도우용 pool=solo 제거 → 리눅스 최적화 완성
 # 윈도우용 --concurrency=1 --pool=solo
+
+#  recorder_service:
+#    build:
+#      context: ./recorder_service
+#    command: python3 recorder_service.py
+#    environment:
+#      - REDIS_HOST=redis
+#      - DOCKER=1
+#    depends_on:
+#      - redis
