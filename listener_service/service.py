@@ -2,13 +2,12 @@ import os
 import redis
 import logging
 
-# ✅ logging 설정 (파일 + 콘솔)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("result_listener.log"),   # 🔥 파일로 저장
-        logging.StreamHandler()                       # 🔥 콘솔에도 출력
+        logging.FileHandler("result_listener.log"),
+        logging.StreamHandler()
     ]
 )
 
@@ -19,7 +18,7 @@ r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 pubsub = r.pubsub()
 pubsub.subscribe("result_channel")
 
-logging.info("🎧 Listener started. Waiting for results...")
+logging.info("[Listener] 🎧 Listener started. Waiting for results...")
 
 positive_count = 0
 positive_score_sum = 0.0
@@ -30,13 +29,11 @@ for message in pubsub.listen():
     if message["type"] == "message":
         try:
             data = message["data"].decode()
+            logging.info(f"[Listener] 🎉 STT 결과 수신: {data}")
         except Exception as e:
             logging.error(f"[Listener] Decode error: {e}")
             continue
 
-        logging.info(f"[STT 결과] {data}")
-
-        # ✅ 통계 업데이트
         try:
             if "긍정" in data:
                 positive_count += 1
@@ -49,9 +46,8 @@ for message in pubsub.listen():
         except Exception as e:
             logging.error(f"[Listener] Score parse error: {e}")
 
-        # ✅ 실시간 통계 출력 + 로그 저장
         stats = (
-            f"✅ 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
+            f"✅ Listener 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
             f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"
         )
         logging.info(stats)

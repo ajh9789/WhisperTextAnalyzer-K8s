@@ -14,7 +14,6 @@ classifier = pipeline(
     model="distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 )
 
-# ✅ 통계 변수 초기화
 positive_count = 0
 positive_score_sum = 0.0
 negative_count = 0
@@ -22,12 +21,9 @@ negative_score_sum = 0.0
 
 @celery_app.task
 def analyze_text():
-    """
-    Redis의 text_queue에서 텍스트를 가져와 감정 분석 후 result_channel로 publish
-    """
     global positive_count, positive_score_sum, negative_count, negative_score_sum
 
-    print("[Analyzer] ⏳ polling text_queue...")
+    print("[Analyzer] ⏳ text_queue polling 시작")
     try:
         text = r.rpop("text_queue")
     except Exception as e:
@@ -35,12 +31,13 @@ def analyze_text():
         return
 
     if not text:
-        print("[Analyzer] 💤 queue empty")
+        print("[Analyzer] 💤 text_queue 비어있음")
         return
 
     try:
-        print(f"[Analyzer] 🎙️ text found, analyzing: {text.decode()}")
-        result = classifier(text.decode())[0]
+        decoded_text = text.decode()
+        print(f"[Analyzer] 🎙️ 텍스트 수신: {decoded_text}")
+        result = classifier(decoded_text)[0]
     except Exception as e:
         print(f"[Analyzer] Sentiment analysis error: {e}")
         return
@@ -56,14 +53,14 @@ def analyze_text():
         negative_count += 1
         negative_score_sum += score
 
-    output = f"{icon} {emotion} [{score:.2f}] : {text.decode()}"
+    output = f"{icon} {emotion} [{score:.2f}] : {decoded_text}"
     try:
         r.publish("result_channel", output)
     except Exception as e:
         print(f"[Analyzer] Redis publish error: {e}")
         return
 
-    print(f"[Analyzer] ✅ published result: {output}")
+    print(f"[Analyzer] ✅ publish 완료: {output}")
     print(
         f"[Analyzer] 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
         f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"

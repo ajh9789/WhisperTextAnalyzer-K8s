@@ -52,19 +52,9 @@ html = """
 
             document.getElementById("startButton").onclick = async function() {
                 ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-                ws.onopen = async () => {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const ctx = new AudioContext({ sampleRate: 16000 });
-                    const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
-                    const blobURL = URL.createObjectURL(blob);
-                    await ctx.audioWorklet.addModule(blobURL);
-                    const src = ctx.createMediaStreamSource(stream);
-                    const worklet = new AudioWorkletNode(ctx, 'audio-processor');
-                    worklet.port.onmessage = (e) => {
-                        if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
-                    };
-                    src.connect(worklet).connect(ctx.destination);
-                }
+
+                ws.onopen = () => console.log("✅ WebSocket 연결 성공");
+                ws.onclose = () => console.log("❌ WebSocket 연결 종료");
 
                 ws.onmessage = function(event) {
                     var data = event.data;
@@ -86,15 +76,30 @@ html = """
                     stats.textContent = `👍 ${pos}% ${positive}회 | ${negative}회 ${neg}% 👎`;
                 };
 
-                ws.onclose = function() {
-                    var div = document.createElement("div");
-                    div.textContent = "[Disconnected]";
-                    div.style.color = "red";
-                    log.appendChild(div);
-                };
-            };
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    console.log("🎧 getUserMedia 성공");
 
+                    const ctx = new AudioContext({ sampleRate: 16000 });
+                    const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
+                    const blobURL = URL.createObjectURL(blob);
+                    await ctx.audioWorklet.addModule(blobURL);
+
+                    const src = ctx.createMediaStreamSource(stream);
+                    const worklet = new AudioWorkletNode(ctx, 'audio-processor');
+
+                    worklet.port.onmessage = (e) => {
+                        console.log("🎙️ Audio chunk 전달:", e.data.byteLength, "bytes");
+                        if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                    };
+
+                    src.connect(worklet).connect(ctx.destination);
+                } catch (error) {
+                    console.error("❌ Audio 처리 중 오류 발생:", error);
+                }
+            };
         </script>
+
         <script type="worklet">
             class AudioProcessor extends AudioWorkletProcessor {
                 process(inputs, outputs, parameters) {
@@ -112,26 +117,33 @@ html = """
 </html>
 """
 
+
 @service.get("/")
 async def get():
     return HTMLResponse(html)
 
+
 @service.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
+        print("✅ WebSocket 연결 요청")
         r.ping()
     except redis.ConnectionError:
         await websocket.close()
+        print("❌ Redis 연결 실패 - WebSocket 종료")
         return
 
     await websocket.accept()
+    print("✅ WebSocket 연결 수락")
     connected_users.add(websocket)
 
     try:
         while True:
             data = await websocket.receive_bytes()
+            print(f"🎧 WebSocket 데이터 수신: {len(data)} bytes")
             r.lpush("audio_queue", data)
+            print("🎯 Redis audio_queue에 push 완료")
     except WebSocketDisconnect:
-        pass
+        print("❌ WebSocket 연결 끊김")
     finally:
         connected_users.remove(websocket)

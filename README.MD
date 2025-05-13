@@ -100,21 +100,38 @@ listener (result_channel 구독 → 콘솔 + 파일로 출력)
 
 ### 4. STT 서비스의 샘플링 주파수 문제 (실시간 FastAPI 소켓 통신)
 
-- Whisper 모델(STT)은 **16,000Hz (16kHz)** 샘플링을 요구
-- 하지만 브라우저, 모바일, 디바이스 마이크의 기본 샘플링은 보통 **44,100Hz, 48,000Hz** 등으로 다양하여 **샘플링 불일치 문제가 발생**
-- FastAPI WebSocket으로 실시간 스트림 연결 시 **서버에서 실시간으로 downsampling (샘플레이트 변환)**이 필요
-- **변환 과정의 주요 문제점**
-  - 실시간 스트림 데이터는 연속 버퍼로 들어와 **실시간 downsample이 까다로움**
-  - Python `sounddevice`, `scipy.signal.resample_poly()` 등을 통해 변환 로직을 직접 구현
-- **기존 방식**:
-  - ScriptProcessorNode 방식에서는 AudioContext sampleRate mismatch, small frame size 문제 등으로 **실제 Redis에 데이터가 안 들어가는 문제** 발생
-- **최종 개선**: 
-  - **MediaRecorder API로 개선**
-  - 500ms마다 안정적인 Blob 데이터를 생성 → WebSocket으로 전송 → FastAPI 서버에서 그대로 Redis push
-- **결과**
-  - 실시간성 + 안정성 모두 확보
-  - 데이터 손실 문제 해결
+Whisper 모델(STT)은 **16,000Hz (16kHz)** 샘플링을 요구합니다.
 
+하지만 브라우저, 모바일, 디바이스 마이크의 기본 샘플링은 보통 **44,100Hz**, **48,000Hz** 등으로 다양하여 **샘플링 불일치 문제**가 발생합니다.
+
+FastAPI WebSocket으로 실시간 스트림 연결 시 서버에서 **Whisper 입력용 PCM 데이터**로 전송해야 합니다.
+
+---
+
+#### ✔ 기존 문제점
+
+기존 **MediaRecorder**, **ScriptProcessorNode** 방식에서는 다음과 같은 문제가 있었습니다.
+
+- AudioContext sampleRate mismatch
+- 500ms chunk delay → 실시간성 한계
+- Redis로 데이터 전송 시 딜레이 및 누락 문제
+
+---
+
+#### ✔ 최종 개선: AudioWorklet 적용
+
+- **AudioWorklet + AudioContext({ sampleRate: 16000 })**으로 직접 **16kHz 스트림 생성**
+- 브라우저에서 실시간 **PCM Float32 buffer** 생성 → **FastAPI WebSocket**으로 즉시 전송
+- 서버에서는 별도의 downsampling 없이 바로 **Redis audio_queue**로 push 가능
+
+---
+
+#### ✔ 결과
+
+- 진짜 **low-latency 실시간 스트림 처리** 완성
+- 버퍼 크기를 **128~512 frame 수준**으로 조절 가능 → **1020ms 단위 전송** → 거의 통화 수준의 실시간성 확보
+- 데이터 손실 및 지연 문제 완벽 해결
+- Whisper, Celery stt_worker 구조 변경 없이 그대로 호환
 
 ### 5. HTTPS 인증 관련 이슈 (브라우저 마이크 권한)
 - 실서버 배포 시 HTTPS가 없으면 브라우저가 마이크 접근 차단
