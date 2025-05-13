@@ -202,6 +202,71 @@ Worker는 Redis에서 task를 가져올 때, Celery가 JSON을 디코드하여 P
 
 따라서 Worker 함수(analyze_text 등)는 항상 Python native object를 인자로 전달받습니다. (ex. str, list 등)
 
+### 10. base64의 이상한 문자 원리와 실무 사용 이유
+
+실무에서 이미지, 오디오, 바이너리 파일 등 **binary data (bytes)**를 network로 안전하게 전달하려면  
+**text-only 시스템 (예: JSON, XML, HTTP, WebSocket 등)**을 통과해야 하는 경우가 많습니다.  
+하지만 이러한 시스템은 raw bytes를 전달할 수 없어 **깨짐, 오류, 예기치 않은 동작**이 발생합니다.
+
+이를 해결하기 위해 등장한 것이 **base64 인코딩**입니다.
+
+---
+
+#### ✅ base64의 원리
+
+```plaintext
+bytes (binary data) → base64 인코딩 → 사람이 읽을 수 있는 ASCII 문자 (str)
+```
+
+base64는 **64개의 문자 집합 (A-Z, a-z, 0-9, +, /)**만 사용하여  
+어떤 binary data라도 **깨지지 않는 문자열로 변환**합니다.
+
+이 문자열은 사람이 읽으면 의미 없는 알파벳, 숫자, 특수기호 조합으로 보이지만  
+**실제론 원본 binary를 완벽하게 복원할 수 있는 문자열 포맷**입니다.
+
+---
+
+#### ✅ 예시 코드
+
+```python
+import base64
+
+# 예: 원본 binary 데이터
+data = b'\x89PNG\r\n\x1a\n...'  # 이미지나 오디오 파일 등
+
+# base64 인코딩 → str로 변환
+b64_string = base64.b64encode(data).decode('utf-8')
+print(b64_string)  # → 사람이 보면 이상하지만 JSON-safe 문자열
+
+# base64 디코딩 → 원래 bytes로 복원
+restored_data = base64.b64decode(b64_string)
+```
+
+출력 예시:
+```
+iVBORw0KGgoAAAANSUhEUgAA...
+```
+
+---
+
+#### ✅ 핵심 요약
+
+| 단계 | 역할 |
+|------|------|
+| 원본 data | bytes (binary) |
+| base64 인코딩 | 이상한 문자로 보이는 ASCII 문자열 (str) |
+| 용도 | text-only 시스템에서 binary를 안전하게 전달하기 위해 |
+
+즉, base64 인코딩은  
+```
+바이트를 이상한 문자(str)로 바꿔서 저장하고 보내는 과정 → YES!
+```
+
+실제로 실무에서는 Celery + Redis 또는 Web API에서 image, audio, video를 전달할 때 **필수 표준 방식**으로 사용됩니다.
+
+---
+
+
 ---
 
 #### ✅ 주요 정리

@@ -9,7 +9,7 @@ import tempfile
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
-celery_app = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 model_size = os.getenv("MODEL_SIZE", "small")
@@ -17,7 +17,7 @@ model_path = os.getenv("MODEL_PATH", "/app/models")
 os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
-@celery_app.task
+@celery.task
 def transcribe_audio(audio_bytes):
     print("FastAPI → Celery 전달 audio_chunk 수신")
     audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
@@ -28,5 +28,5 @@ def transcribe_audio(audio_bytes):
 
     text = result.get("text", "").strip()
     print(f"[STT] 🎙️ Whisper STT 결과: {text}")
-    celery_app.send_task("analyzer_worker.analyze_text", args=[text])
+    celery.send_task("analyze_worker.analyze_text", args=[text])
     print(f"[STT] ✅ analyzer_worker 호출 완료: {text}")

@@ -6,20 +6,20 @@ services:
       - "6379:6379"
     restart: always
 
-  recorder:
-    build:
-      context: ./recorder_service
-    command: python3 service.py
-    environment:
-      - REDIS_HOST=redis
-      - DOCKER=1
-    depends_on:
-      - redis
+#  recorder_service:
+#    build:
+#      context: ./recorder_service
+#    command: python3 recorder_service.py
+#    environment:
+#      - REDIS_HOST=redis
+#      - DOCKER=1
+#    depends_on:
+#      - redis
 
   stt_worker:
     build:
       context: ./stt_worker
-    command: celery -A worker:celery_app worker --loglevel=info
+    command: celery -A stt_worker:celery worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -30,7 +30,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A worker:celery_app worker --loglevel=info
+    command: celery -A analyzer_worker:celery worker --loglevel=info
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -38,10 +38,10 @@ services:
       - redis
     restart: always
 
-  listener:
+  listener_service:
     build:
       context: ./listener_service
-    command: python3 service.py
+    command: python3 listener_service.py
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -60,7 +60,7 @@ services:
     depends_on:
       - redis
     restart: always
-    command: uvicorn service:service --host 0.0.0.0 --port 8000
+    command: uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
 # ✅ 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 

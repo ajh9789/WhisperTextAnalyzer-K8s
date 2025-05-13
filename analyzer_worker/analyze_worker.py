@@ -6,7 +6,7 @@ from transformers import pipeline
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 
-celery_app = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+celery = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 classifier = pipeline(
     "sentiment-analysis",
@@ -18,7 +18,7 @@ positive_score_sum = 0.0
 negative_count = 0
 negative_score_sum = 0.0
 
-@celery_app.task
+@celery.task
 def analyze_text(text):
     global positive_count, positive_score_sum, negative_count, negative_score_sum
     print("[STT] → [Analyzer] Celery 전달 text 수신")
