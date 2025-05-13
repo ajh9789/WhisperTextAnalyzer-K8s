@@ -37,3 +37,4 @@ weights/
 #파이참 구성동시 시작
 .localtest.run/
 /recorder_service
+README.MD

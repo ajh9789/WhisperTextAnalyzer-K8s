@@ -53,48 +53,16 @@ html = """
 
             document.getElementById("startButton").onclick = function() {
                 navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-                    const audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(stream);
-                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                    const mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start(500);  // ✅ 500ms 단위로 안정적 chunk 전송
 
-                    source.connect(processor);
-                    processor.connect(audioContext.destination);
-
-                    processor.onaudioprocess = function(e) {
-                        var input = e.inputBuffer.getChannelData(0);
-                        var buffer = encodeWAV(input, audioContext.sampleRate);
-                        if (ws.readyState === WebSocket.OPEN) ws.send(buffer);
-                    };
+                    mediaRecorder.ondataavailable = function(e) {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(e.data);   // ✅ Blob 데이터 바로 전송
+                        }
+                    }
                 });
             };
-
-            function encodeWAV(samples, rate) {
-                var buffer = new ArrayBuffer(44 + samples.length * 2);
-                var view = new DataView(buffer);
-
-                function writeStr(v, o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); }
-
-                writeStr(view, 0, 'RIFF');
-                view.setUint32(4, 36 + samples.length * 2, true);
-                writeStr(view, 8, 'WAVEfmt ');
-                view.setUint32(16, 16, true);
-                view.setUint16(20, 1, true);
-                view.setUint16(22, 1, true);
-                view.setUint32(24, rate, true);
-                view.setUint32(28, rate * 2, true);
-                view.setUint16(32, 2, true);
-                view.setUint16(34, 16, true);
-                writeStr(view, 36, 'data');
-                view.setUint32(40, samples.length * 2, true);
-
-                var offset = 44;
-                for (var i = 0; i < samples.length; i++, offset += 2) {
-                    var s = Math.max(-1, Math.min(1, samples[i]));
-                    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                }
-
-                return buffer;
-            }
 
             ws.onmessage = function(event) {
                 var data = event.data;
@@ -144,9 +112,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive_bytes()
-            r.lpush("audio_queue", data)
-            await websocket.send_text(f"Audio chunk size: {len(data)} bytes")
+            data = await websocket.receive()
+            audio_chunk = data.get("bytes")
+            if audio_chunk:
+                r.lpush("audio_queue", audio_chunk)
+                await websocket.send_text(f"✅ Audio chunk received: {len(audio_chunk)} bytes")
     except WebSocketDisconnect:
         pass
     finally:
