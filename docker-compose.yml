@@ -48,7 +48,7 @@ services:
     depends_on:
       - redis
     restart: always
-    command: uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
+    command: ["uvicorn", "fastapi_service:app", "--host", "0.0.0.0", "--port", "8000"]
 # ✅ 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 
