@@ -425,10 +425,18 @@ pip install openai-whisper
 whisper 패키지는 반드시 openai-whisper로 명확하게 지정해야 합니다.
 whisper==1.1.10 절대 설치 금지 → 전혀 다른 패키지입니다.
 ```
-
-이 문제를 직접 디버깅하고 해결하는 과정에서 실제 실무 수준의 troubleshooting 경험을 할 수 있었습니다.  
-→ 실무 인터뷰, 발표에서 강조 포인트로 추천합니다.
-
+## 13.Celery Task에서 전용 큐를 미지정
+### 🎯 문제 원인
+Docker multi-container 구조에서는 기본적으로 모든 Celery worker가 기본 queue(`"celery"`)를 구독합니다.  
+이로 인해 **모든 worker가 모든 task를 수신하려 시도** → 자기 task가 아니면 KeyError가 발생합니다.
+### ✅ 해결 원칙
+**각 worker는 고유 queue만 구독**하고,  
+**FastAPI에서 send_task 시 명확하게 queue를 지정**
+````
+command: celery -A stt_worker:celery worker -Q stt_queue --loglevel=info
+celery.send_task("stt_worker.transcribe_audio", args=[audio_chunk], queue="stt_queue")
+@celery.task(name="stt_worker.transcribe_audio")
+````
 ---
 ## 🐳 Dockerfile 레이어와 캐시 구조 원리
 

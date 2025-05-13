@@ -8,7 +8,6 @@ import tempfile
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
-
 celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 

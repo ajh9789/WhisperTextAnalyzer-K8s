@@ -7,7 +7,7 @@ services:
   stt_worker:
     build:
       context: ./stt_worker
-    command: celery -A stt_worker:celery worker -Q stt_queue --loglevel=info
+    command: [ "celery", "-A", "stt_worker:celery", "worker", "-Q", "stt_queue", "--loglevel=info" ]
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
@@ -18,7 +18,7 @@ services:
   analyzer_worker:
     build:
       context: ./analyzer_worker
-    command: celery -A analyzer_worker:celery worker -Q analyzer_queue --loglevel=info
+    command: ["celery", "-A", "analyzer_worker:celery", "worker", "-Q", "analyzer_queue", "--loglevel=info"]
     environment:
       - REDIS_HOST=redis
       - DOCKER=1
