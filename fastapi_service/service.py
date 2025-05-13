@@ -90,6 +90,7 @@ html = """
 
                     worklet.port.onmessage = (e) => {
                         console.log("🎙️ Audio chunk 전달:", e.data.byteLength, "bytes");
+                        console.log("ws.readyState:", ws.readyState);
                         if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
                     };
 
@@ -106,6 +107,20 @@ html = """
                     const input = inputs[0];
                     if (input.length > 0) {
                         const channelData = input[0];
+
+                        // ✅ 잡음제거를 위해 energy filter 추가 (VAD)
+                        let energy = 0;
+                        for (let i = 0; i < channelData.length; i++) {
+                            energy += Math.abs(channelData[i]);
+                        }
+                        energy = energy / channelData.length;
+
+                        if (energy < 0.0001) {
+                        // ✅ 무음 frame → 건너뜀
+                            return true;
+                        }
+
+                        // ✅ 정상 frame → main thread로 전달
                         this.port.postMessage(channelData.buffer, [channelData.buffer]);
                     }
                     return true;
@@ -139,11 +154,19 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive_bytes()
-            print(f"🎧 WebSocket 데이터 수신: {len(data)} bytes")
-            r.lpush("audio_queue", data)
-            print("🎯 Redis audio_queue에 push 완료")
+            data = await websocket.receive()
+            if "bytes" in data and data["bytes"]:
+                audio_chunk = data["bytes"]
+                print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
+                r.lpush("audio_queue", audio_chunk)
+                print("🎯 Redis audio_queue에 push 완료")
+            elif "text" in data and data["text"]:
+                print(f"📄 WebSocket text data 수신: {data['text']}")
+            else:
+                print("❓ 알 수 없는 WebSocket 데이터 수신:", data)
     except WebSocketDisconnect:
         print("❌ WebSocket 연결 끊김")
+    except Exception as e:
+        print(f"❌ WebSocket receive error: {e}")
     finally:
         connected_users.remove(websocket)
