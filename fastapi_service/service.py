@@ -21,14 +21,7 @@ html = """
             body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
             #header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #333; color: white; font-size: 1.2em; flex-wrap: wrap; }
             #title { flex: 1; text-align: left; }
-            #startButton {
-    min-width: 120px;
-    margin: 0 auto;
-    display: block;
-    padding: 8px 16px;
-    font-size: 1em;
-    cursor: pointer;
-}
+            #startButton { min-width: 120px; margin: 0 auto; display: block; padding: 8px 16px; font-size: 1em; cursor: pointer; }
             #people { flex: 1; text-align: right; }
             #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
             #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
@@ -52,26 +45,63 @@ html = """
             var positive = 0, negative = 0;
 
             document.getElementById("startButton").onclick = function() {
-            console.log("🎙️ Start button clicked");
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-            console.log("🎙️ Mic stream opened");
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.start(500);
-            console.log("🎙️ MediaRecorder started");
+                console.log("🎙️ Start button clicked");
+                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                    console.log("🎙️ Mic stream opened");
+                    const mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start(500);
+                    console.log("🎙️ MediaRecorder started");
 
-            mediaRecorder.ondataavailable = function(e) {
-            console.log("🎙️ Data available! size:", e.data.size);
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(e.data);
-                console.log("🎙️ Audio chunk sent");
-            } else {
-                console.log("❌ WebSocket not open");
-               }
+                    const audioContext = new AudioContext();
+
+                    mediaRecorder.ondataavailable = function(e) {
+                        console.log("🎙️ Data available! size:", e.data.size);
+                        if (ws.readyState !== WebSocket.OPEN) return;
+
+                        e.data.arrayBuffer().then(buffer => {
+                            audioContext.decodeAudioData(buffer, decodedData => {
+                                const samples = decodedData.getChannelData(0);
+                                const wavBuffer = encodeWAV(samples, decodedData.sampleRate);
+                                ws.send(wavBuffer);
+                                console.log("🎙️ WAV audio chunk sent");
+                            });
+                        });
+                    }
+                });
             }
-          }).catch(function(err) {
-          console.error("❌ getUserMedia error:", err);
-       });
-}
+
+            function encodeWAV(samples, sampleRate) {
+                const buffer = new ArrayBuffer(44 + samples.length * 2);
+                const view = new DataView(buffer);
+
+                function writeString(view, offset, string) {
+                    for (let i = 0; i < string.length; i++) {
+                        view.setUint8(offset + i, string.charCodeAt(i));
+                    }
+                }
+
+                let offset = 0;
+                writeString(view, offset, 'RIFF'); offset += 4;
+                view.setUint32(offset, 36 + samples.length * 2, true); offset += 4;
+                writeString(view, offset, 'WAVE'); offset += 4;
+                writeString(view, offset, 'fmt '); offset += 4;
+                view.setUint32(offset, 16, true); offset += 4;
+                view.setUint16(offset, 1, true); offset += 2;
+                view.setUint16(offset, 1, true); offset += 2;
+                view.setUint32(offset, sampleRate, true); offset += 4;
+                view.setUint32(offset, sampleRate * 2, true); offset += 4;
+                view.setUint16(offset, 2, true); offset += 2;
+                view.setUint16(offset, 16, true); offset += 2;
+                writeString(view, offset, 'data'); offset += 4;
+                view.setUint32(offset, samples.length * 2, true); offset += 4;
+
+                for (let i = 0; i < samples.length; i++, offset += 2) {
+                    const s = Math.max(-1, Math.min(1, samples[i]));
+                    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                }
+
+                return buffer;
+            }
 
             ws.onmessage = function(event) {
                 var data = event.data;
@@ -142,7 +172,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 last_active = asyncio.get_event_loop().time()
                 try:
                     r.lpush("audio_queue", data)
-                    await websocket.send_text(f"Audio chunk size: {len(data)} bytes")  # ✅ 요기만 변경
+                    await websocket.send_text(f"Audio chunk size: {len(data)} bytes")
                 except redis.ConnectionError:
                     await websocket.send_text("ALERT:서버가 불안정해서 연결을 끊습니다.")
                     break
