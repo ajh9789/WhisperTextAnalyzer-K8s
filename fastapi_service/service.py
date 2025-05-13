@@ -45,7 +45,7 @@ html = """
         <div id="stats">👍 0% 0회 | 0회 0% 👎</div>
 
         <script>
-            var ws = new WebSocket("ws://" + location.host + "/ws");
+            var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
             var log = document.getElementById("log");
             var stats = document.getElementById("stats");
             var people = document.getElementById("people");
