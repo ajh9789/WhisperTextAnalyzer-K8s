@@ -17,7 +17,7 @@ model_path = os.getenv("MODEL_PATH", "/app/models")
 os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
-@celery.task
+@celery.task(name="stt_worker.transcribe_audio")
 def transcribe_audio(audio_bytes):
     print("FastAPI → Celery 전달 audio_chunk 수신")
     audio_np = np.frombuffer(audio_bytes, dtype=np.float32)

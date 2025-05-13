@@ -430,7 +430,57 @@ whisper==1.1.10 절대 설치 금지 → 전혀 다른 패키지입니다.
 → 실무 인터뷰, 발표에서 강조 포인트로 추천합니다.
 
 ---
+## 🐳 Dockerfile 레이어와 캐시 구조 원리
 
+### ✅ Dockerfile 빌드 시 레이어 구조
+Docker는 각 명령어마다 레이어를 생성하며, 레이어는 다음과 같이 쌓인다.
+
+FROM python:3.10-slim # Layer 1 (Base Image)
+WORKDIR /app # Layer 2
+RUN apt-get update &&
+apt-get install -y ffmpeg &&
+apt-get clean # Layer 3 (System Package Layer)
+RUN pip install --upgrade pip # Layer 4 (Python Layer)
+COPY requirements.txt . # Layer 5 (File Change Layer)
+RUN pip install -r requirements.txt # Layer 6 (Dependency Layer)
+COPY . . # Layer 7 (Source Code Layer)
+
+
+### ✅ 레이어 캐시의 원칙
+Docker는 동일한 명령어 + 동일한 파일 + 동일한 context라면 이전 레이어를 캐시에서 재사용한다.
+
+캐시가 유지되는 조건:
+- Dockerfile 내용이 변경되지 않았을 때
+- Base Image (`FROM`)가 동일할 때
+- `COPY`, `ADD` 등으로 복사된 파일 내용이 동일할 때
+- Build context (`build: context:` 디렉토리) 파일 변경이 없을 때
+
+캐시가 깨지는 조건:
+- Base Image가 변경되었을 때
+- Dockerfile 명령어가 변경되었을 때
+- requirements.txt 파일이 변경되었을 때 (`COPY requirements.txt .`)
+- 소스 코드가 변경되었을 때 (`COPY . .`)
+- 시스템 패키지 명령 (`RUN apt-get install ...`)이 추가 또는 변경되었을 때
+
+### ✅ docker-compose의 build context와 캐시
+docker-compose의 `build: context:` 설정 자체는 캐시를 깨지 않는다.  
+단, 해당 context 내부 파일이 변경되면 캐시가 무효화된다.
+
+- `docker-compose build` → 내부적으로 `docker build -f Dockerfile ./` 와 동일
+- stt_worker, analyzer_worker, fastapi_service 등 context가 다르면 캐시는 서로 영향을 주지 않는다.
+
+### ✅ Best Practice
+- 시스템 레이어 (`apt-get`) → Python 레이어 (`pip`) → 코드 복사 순으로 작성 권장
+- 변경 가능성이 낮은 명령어를 위에 두어 캐시 효율을 극대화
+
+**추천 Dockerfile 예시**
+FROM python:3.10-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+RUN pip install --upgrade pip
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
 
 
 
