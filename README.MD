@@ -19,8 +19,9 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
   <img src="https://img.shields.io/badge/PyCharm-Professional-000000?logo=jetbrains&logoColor=white"/>
   <img src="https://img.shields.io/badge/Git-Version%20Control-F05032?logo=git&logoColor=white"/>
 </p>
----
+
 ## 📸 WhisperTextAnalyzer 시스템 실행 예시
+
 <p>
   <img src="img.jpg" alt="WhisperTextAnalyzer 시스템 실행 예시" width="50%"/>
 </p>
