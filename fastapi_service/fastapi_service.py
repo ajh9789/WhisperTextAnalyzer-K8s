@@ -1,16 +1,15 @@
 import os
-import redis
-from redis  import asyncio as aioredis
+from redis import asyncio as aioredis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from celery import Celery
+import asyncio
+
 app = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
 connected_users = set()
 
 html = """
@@ -52,51 +51,55 @@ html = """
             let people = document.getElementById("people");
             
             document.getElementById("startButton").onclick = async function() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.warn("이미 WebSocket 연결 중입니다.");
+                return;
+                }
                 ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-
+            
                 ws.onopen = () => console.log("✅ WebSocket 연결 성공");
                 ws.onclose = () => console.log("❌ WebSocket 연결 종료");
-
+            
                 ws.onmessage = function(event) {
-                var data = event.data;
+                    var data = event.data;
+                    if (data.startsWith("PEOPLE:")) {
+                        people.textContent = "연결 인원:" + data.replace("PEOPLE:", "");
+                        return;
+                    }
+                    if (data.startsWith("✅ Listener 통계 → ")) {
+                        stats.textContent = data.replace("✅ Listener 통계 → ", "");
+                        return;
+                    }
+                    var div = document.createElement("div");
+                    div.textContent = data;
+                    log.appendChild(div);
+                    log.scrollTop = log.scrollHeight;
+                };
             
-                // ✅ 1. PEOPLE 메시지
-                if (data.startsWith("PEOPLE:")) {
-                    people.textContent = "연결 인원:" + data.replace("PEOPLE:", "");
-                    return;
-                }
-            
-                // ✅ 2. Listener 통계 → stats 영역 변경
-                if (data.startsWith("✅ Listener 통계 → ")) {
-                    stats.textContent = data.replace("✅ Listener 통계 → ", "");
-                    return;
-                }
-                
-                // ✅ 3. 나머지 (STT 문장) → log 영역 추가
-                var div = document.createElement("div");
-                div.textContent = data;
-                log.appendChild(div);
-                log.scrollTop = log.scrollHeight;
-            };  
-
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            sampleRate: 16000,               // 🎯 Whisper용 16kHz
+                            channelCount: 1,                 // 🎯 mono 고정
+                            noiseSuppression: true,          // 🎯 배경 잡음 제거
+                            echoCancellation: true           // 🎯 에코 제거
+                        }
+                    });
                     console.log("🎧 getUserMedia 성공");
-
-                    const ctx = new AudioContext({ sampleRate: 16000 });
+            
+                    const ctx = new AudioContext({ sampleRate: 16000 });  // 🎯 downstream 16kHz 고정
                     const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
                     const blobURL = URL.createObjectURL(blob);
                     await ctx.audioWorklet.addModule(blobURL);
-
+            
                     const src = ctx.createMediaStreamSource(stream);
                     const worklet = new AudioWorkletNode(ctx, 'audio-processor');
-
+            
                     worklet.port.onmessage = (e) => {
                         console.log("🎙️ Audio chunk 전달:", e.data.byteLength, "bytes");
-                        console.log("ws.readyState:", ws.readyState);
                         if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
                     };
-
+            
                     src.connect(worklet).connect(ctx.destination);
                 } catch (error) {
                     console.error("❌ Audio 처리 중 오류 발생:", error);
@@ -105,52 +108,40 @@ html = """
         </script>
 
         <script type="worklet">
-            class AudioProcessor extends AudioWorkletProcessor {
-                process(inputs, outputs, parameters) {
-                    const input = inputs[0];
-                    if (input.length > 0) {
-                        const channelData = input[0];
-
-                        // ✅ 잡음제거를 위해 energy filter 추가 (VAD)
-                        let energy = 0;
-                        for (let i = 0; i < channelData.length; i++) {
-                            energy += Math.abs(channelData[i]);
-                        }
-                        energy = energy / channelData.length;
-
-                        if (energy < 0.001) {
-                        // ✅ 무음 frame → 건너뜀
-                            return true;
-                        }
-
-                        // ✅ 정상 frame → main thread로 전달
-                        this.port.postMessage(channelData.buffer, [channelData.buffer]);
+        class AudioProcessor extends AudioWorkletProcessor {
+            process(inputs, outputs, parameters) {
+                const input = inputs[0];
+                if (input.length > 0) {
+                    const channelData = input[0];
+        
+                    // ✅ VAD: energy filter
+                    let energy = 0;
+                    for (let i = 0; i < channelData.length; i++) {
+                        energy += Math.abs(channelData[i]);
                     }
-                    return true;
+                    energy /= channelData.length;
+        
+                    if (energy < 0.0005) return true;  // ✅ silence skip
+        
+                    // ✅ Float32 → Int16 변환
+                    const int16Buffer = new Int16Array(channelData.length);
+                    for (let i = 0; i < channelData.length; i++) {
+                        let s = Math.max(-1, Math.min(1, channelData[i]));
+                        int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+        
+                    // ✅ Int16Array → ArrayBuffer 전달
+                    this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
                 }
+                return true;
             }
-            registerProcessor('audio-processor', AudioProcessor);
+        }
+        registerProcessor('audio-processor', AudioProcessor);
         </script>
+
     </body>
 </html>
 """
-
-
-import os
-import redis
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from celery import Celery
-import asyncio
-
-app = FastAPI()
-
-REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
-REDIS_PORT = 6379
-celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
-connected_users = set()
 
 @app.get("/")
 async def get():
@@ -158,9 +149,10 @@ async def get():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    redis = aioredis.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
     try:
-        r.ping()
-    except redis.ConnectionError:
+        await redis.ping()
+    except Exception:
         await websocket.close()
         return
 
@@ -171,26 +163,42 @@ async def websocket_endpoint(websocket: WebSocket):
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
+        # ✅ 버퍼 accumulate 로직
+        buffer = bytearray()
+        start_time = None
+        TIMEOUT_SECONDS = 5.0   # 🎯 버퍼 accumulate 시간 (5초)
+
         while True:
             audio_chunk = await websocket.receive_bytes()
-            celery.send_task("stt_worker.transcribe_audio", args=[audio_chunk], queue="stt_queue")
+            if not start_time:
+                start_time = asyncio.get_event_loop().time()  # 🎯 시작 시간 기록
+            buffer.extend(audio_chunk)
+
+            # 🎯 5초 경과 시 STT task 전송
+            if asyncio.get_event_loop().time() - start_time >= TIMEOUT_SECONDS:
+                print(f"[FastAPI] 🎯 5초 버퍼 완료 → stt_worker 전달 (size: {len(buffer)})")
+                celery.send_task("stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue")
+                buffer = bytearray()
+                start_time = None
+
     except WebSocketDisconnect:
         connected_users.remove(websocket)
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
 async def redis_subscriber():
-    redis = await aioredis.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True)
+    redis = await aioredis.from_url(
+        f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True
+    )
     pubsub = redis.pubsub()
     await pubsub.subscribe("final_stats", "result_messages")
-    print("[fastapi] ✅ Subscribed to final_stats & result_messages (aioredis)")
+    print("[fastapi] ✅ Subscribed to final_stats & result_messages")
 
     async for message in pubsub.listen():
         if message["type"] != "message":
             continue
 
         data = message["data"]
-
         for user in connected_users.copy():
             try:
                 await user.send_text(data)
@@ -199,6 +207,5 @@ async def redis_subscriber():
 
 @app.on_event("startup")
 async def startup_event():
-    loop = asyncio.get_running_loop()
-    loop.create_task(redis_subscriber())
+    asyncio.create_task(redis_subscriber())
 
