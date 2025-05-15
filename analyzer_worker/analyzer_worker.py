@@ -13,12 +13,7 @@ classifier = pipeline(
     model="distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 )
 
-positive_count = 0
-positive_score_sum = 0.0
-negative_count = 0
-negative_score_sum = 0.0
-
-@celery.task(name="analyzer_worker.analyzer_text")
+@celery.task(name="analyzer_worker.analyzer_text", queue="analyzer_queue")
 def analyzer_text(text):
     global positive_count, positive_score_sum, negative_count, negative_score_sum
     print("[STT] → [Analyzer] Celery 전달 text 수신")
@@ -31,25 +26,13 @@ def analyzer_text(text):
         return
 
     emotion = "긍정" if result["label"] == "POSITIVE" else "부정"
-    icon = "✅" if result["label"] == "POSITIVE" else "❌"
+    icon = "👍" if result["label"] == "POSITIVE" else "👎"
     score = result["score"]
 
-    if result["label"] == "POSITIVE":
-        positive_count += 1
-        positive_score_sum += score
-    else:
-        negative_count += 1
-        negative_score_sum += score
-
-    output = f"{icon} {emotion} [{score:.2f}] : {decoded_text}"
+    output = f"{icon} {emotion} [{score * 100:.0f}%] : {decoded_text}"
     try:
         r.publish("result_channel", output)
     except Exception as e:
         print(f"[Analyzer] Redis publish error: {e}")
         return
-
     print(f"[Analyzer] ✅ publish 완료: {output}")
-    print(
-        f"[Analyzer] 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
-        f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"
-    )

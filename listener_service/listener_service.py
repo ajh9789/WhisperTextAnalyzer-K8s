@@ -2,6 +2,10 @@ import os
 import redis
 import logging
 
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
+REDIS_PORT = 6379
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -11,43 +15,42 @@ logging.basicConfig(
     ]
 )
 
-REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
-REDIS_PORT = 6379
+# 긍정, 부정 통계
+positive_count = 0
+positive_score_sum = 0
+negative_count = 0
+negative_score_sum = 0
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-pubsub = r.pubsub()
-pubsub.subscribe("result_channel")
-
+result_pubsub = r.pubsub()
+result_pubsub.subscribe("result_channel")
 logging.info("[Listener] 🎧 Listener started. Waiting for results...")
 
-positive_count = 0
-positive_score_sum = 0.0
-negative_count = 0
-negative_score_sum = 0.0
+for message in result_pubsub.listen():
+    if message["type"] != "message":
+        continue
 
-for message in pubsub.listen():
-    if message["type"] == "message":
-        try:
-            data = message["data"].decode()
-            logging.info(f"[Listener] 🎉 STT 결과 수신: {data}")
-        except Exception as e:
-            logging.error(f"[Listener] Decode error: {e}")
-            continue
+    try:
+        data = message["data"].decode()
+        logging.info(f"[Listener] 🎉 STT 결과 수신: {data}")
 
-        try:
-            if "긍정" in data:
-                positive_count += 1
-                score = float(data.split("[")[1].split("]")[0])
-                positive_score_sum += score
-            elif "부정" in data:
-                negative_count += 1
-                score = float(data.split("[")[1].split("]")[0])
-                negative_score_sum += score
-        except Exception as e:
-            logging.error(f"[Listener] Score parse error: {e}")
+        # ✔ STT 원본 메시지를 result_messages로 바로 publish (채팅창 출력용)
+        r.publish("result_messages", data)
 
+        # ✔ 통계 계산
+        if "긍정" in data:
+            positive_count += 1
+        elif "부정" in data:
+            negative_count += 1
+        total_count = positive_count + negative_count
+        pos_percent = (positive_count / total_count * 100) if total_count else 0
+        neg_percent = (negative_count / total_count * 100) if total_count else 0
+
+        # ✔ 통계 메시지 final_stats로 publish (stats 바 영역)
         stats = (
-            f"✅ Listener 통계 → 긍정: {positive_count}회, 평균 {positive_score_sum/positive_count if positive_count else 0:.2f} / "
-            f"부정: {negative_count}회, 평균 {negative_score_sum/negative_count if negative_count else 0:.2f}"
+            f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
         )
         logging.info(stats)
+        r.publish("final_stats", stats)
+
+    except Exception as e:
+        logging.error(f"[Listener] Error: {e}")

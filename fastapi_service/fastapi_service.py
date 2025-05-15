@@ -1,9 +1,9 @@
 import os
 import redis
+from redis  import asyncio as aioredis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from celery import Celery
-
 app = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
@@ -40,18 +40,17 @@ html = """
         <div id="header">
             <div id="title">🎙️ 실시간 감정 분석</div>
             <button id="startButton">🎙️ Start</button>
-            <div id="people">연결 인원: 0/2</div>
+            <div id="people">연결 인원:0</div>
         </div>
         <div id="log"></div>
-        <div id="stats">👍 0% 0회 | 0회 0% 👎</div>
+        <div id="stats">👍0회 0%|0% 0회👎</div>
 
         <script>
             let ws = null;
             let log = document.getElementById("log");
             let stats = document.getElementById("stats");
             let people = document.getElementById("people");
-            let positive = 0, negative = 0;
-
+            
             document.getElementById("startButton").onclick = async function() {
                 ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
 
@@ -59,24 +58,26 @@ html = """
                 ws.onclose = () => console.log("❌ WebSocket 연결 종료");
 
                 ws.onmessage = function(event) {
-                    var data = event.data;
-                    if (data.startsWith("PEOPLE:")) {
-                        people.textContent = "연결 인원: " + data.replace("PEOPLE:", "");
-                        return;
-                    }
-                    var div = document.createElement("div");
-                    div.textContent = data;
-                    log.appendChild(div);
-                    log.scrollTop = log.scrollHeight;
-
-                    if (data.includes("긍정")) positive++;
-                    else if (data.includes("부정")) negative++;
-
-                    var total = positive + negative;
-                    var pos = total ? Math.round((positive / total) * 100) : 0;
-                    var neg = total ? Math.round((negative / total) * 100) : 0;
-                    stats.textContent = `👍 ${pos}% ${positive}회 | ${negative}회 ${neg}% 👎`;
-                };
+                var data = event.data;
+            
+                // ✅ 1. PEOPLE 메시지
+                if (data.startsWith("PEOPLE:")) {
+                    people.textContent = "연결 인원:" + data.replace("PEOPLE:", "");
+                    return;
+                }
+            
+                // ✅ 2. Listener 통계 → stats 영역 변경
+                if (data.startsWith("✅ Listener 통계 → ")) {
+                    stats.textContent = data.replace("✅ Listener 통계 → ", "");
+                    return;
+                }
+                
+                // ✅ 3. 나머지 (STT 문장) → log 영역 추가
+                var div = document.createElement("div");
+                div.textContent = data;
+                log.appendChild(div);
+                log.scrollTop = log.scrollHeight;
+            };  
 
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -117,7 +118,7 @@ html = """
                         }
                         energy = energy / channelData.length;
 
-                        if (energy < 0.00005) {
+                        if (energy < 0.001) {
                         // ✅ 무음 frame → 건너뜀
                             return true;
                         }
@@ -135,6 +136,22 @@ html = """
 """
 
 
+import os
+import redis
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from celery import Celery
+import asyncio
+
+app = FastAPI()
+
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
+REDIS_PORT = 6379
+celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
+connected_users = set()
+
 @app.get("/")
 async def get():
     return HTMLResponse(html)
@@ -142,27 +159,46 @@ async def get():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
-        print("✅ WebSocket 연결 요청")
         r.ping()
     except redis.ConnectionError:
         await websocket.close()
-        print("❌ Redis 연결 실패 - WebSocket 종료")
         return
 
     await websocket.accept()
-    print("✅ WebSocket 연결 수락")
     connected_users.add(websocket)
+
+    for user in connected_users:
+        await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
         while True:
-            # ✅ 핵심 수정: receive_bytes로 바로 받기
             audio_chunk = await websocket.receive_bytes()
-            print(f"🎧 WebSocket에서 binary data 수신: {len(audio_chunk)} bytes")
             celery.send_task("stt_worker.transcribe_audio", args=[audio_chunk], queue="stt_queue")
-            print("🎯 Redis audio_queue에 push, stt_worker 호출 완료")
     except WebSocketDisconnect:
-        print("❌ WebSocket 연결 끊김")
-    except Exception as e:
-        print(f"❌ WebSocket receive error: {e}")
-    finally:
         connected_users.remove(websocket)
+        for user in connected_users:
+            await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+async def redis_subscriber():
+    redis = await aioredis.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True)
+    pubsub = redis.pubsub()
+    await pubsub.subscribe("final_stats", "result_messages")
+    print("[fastapi] ✅ Subscribed to final_stats & result_messages (aioredis)")
+
+    async for message in pubsub.listen():
+        if message["type"] != "message":
+            continue
+
+        data = message["data"]
+
+        for user in connected_users.copy():
+            try:
+                await user.send_text(data)
+            except Exception:
+                connected_users.remove(user)
+
+@app.on_event("startup")
+async def startup_event():
+    loop = asyncio.get_running_loop()
+    loop.create_task(redis_subscriber())
+
