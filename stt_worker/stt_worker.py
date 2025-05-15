@@ -13,7 +13,7 @@ celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 # ✅ Whisper 모델 로드
-model_size = os.getenv("MODEL_SIZE", "small")
+model_size = os.getenv("MODEL_SIZE", "tiny")
 model_path = os.getenv("MODEL_PATH", "/app/models")
 os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
