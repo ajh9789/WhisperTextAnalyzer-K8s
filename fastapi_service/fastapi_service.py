@@ -149,6 +149,8 @@ async def get():
     return HTMLResponse(html)
 
 
+connected_users = {}  # ✅ set → dict (websocket: {"buffer": bytearray, "start_time": float})
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     redis = aioredis.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
@@ -159,32 +161,49 @@ async def websocket_endpoint(websocket: WebSocket):
         return
 
     await websocket.accept()
-    connected_users.add(websocket)
+    # ✅ 개인 버퍼 생성
+    connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
 
+    # ✅ 연결 인원 브로드캐스트
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
-        # ✅ 버퍼 accumulate 로직
-        buffer = bytearray()
-        start_time = None
-        TIMEOUT_SECONDS = 2  # 🎯 버퍼 accumulate 시간 (5초)
+        TIMEOUT_SECONDS = 1  # 🎯 개인 버퍼 기준 2초 accumulate
 
         while True:
             audio_chunk = await websocket.receive_bytes()
+            user_state = connected_users.get(websocket)
+            if user_state is None:
+                break  # 연결 끊겼을 경우
+
+            buffer = user_state["buffer"]
+            start_time = user_state["start_time"]
+
             if not start_time:
-                start_time = asyncio.get_event_loop().time()  # 🎯 시작 시간 기록
+                start_time = asyncio.get_event_loop().time()
+                user_state["start_time"] = start_time
+
             buffer.extend(audio_chunk)
 
-            # 🎯 5초 경과 시 STT task 전송
+            # 🎯 2초 경과 시 개인 버퍼 STT task 전송
             if asyncio.get_event_loop().time() - start_time >= TIMEOUT_SECONDS:
-                print(f"[FastAPI] 🎯 5초 버퍼 완료 → stt_worker 전달 (size: {len(buffer)})")
-                celery.send_task("stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue")
-                buffer = bytearray()
-                start_time = None
+                print(f"[FastAPI] 🎯 사용자 {id(websocket)} → stt_worker 전달 (size: {len(buffer)})")
+                celery.send_task(
+                    "stt_worker.transcribe_audio",
+                    args=[bytes(buffer)],
+                    queue="stt_queue"
+                )
+                # ✅ 개인 버퍼 초기화
+                user_state["buffer"] = bytearray()
+                user_state["start_time"] = None
 
     except WebSocketDisconnect:
-        connected_users.remove(websocket)
+        # ✅ 연결 해제 시 개인 버퍼 제거
+        if websocket in connected_users:
+            del connected_users[websocket]
+
+        # ✅ 인원 수 업데이트
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
