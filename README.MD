@@ -35,7 +35,6 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 - Docker 이해를 높일 수 있는 (컨테이너 기반 분산 시스템 구축, Windows + Linux 환경 차이, 이미지 최적화) 실습 경험
 - 실무 시스템 설계에 가깝게 하기 위해 최적화와 MSA (microservice architecture) 기반 유사한 구성까지 성공적으로 완수
 - WebSocket 소켓 통신 및 AudioWorklet을 통한 실시간 오디오 스트림 전송 기술 학습 및 구현
----
 
 ---
 ## 📌 프로젝트 개요
