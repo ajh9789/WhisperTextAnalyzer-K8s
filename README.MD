@@ -22,7 +22,7 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 ---
 ## 📸 WhisperTextAnalyzer 시스템 실행 예시
 <p>
-  <img src="img.jpg" alt="WhisperTextAnalyzer 시스템 실행 예시" width="80%"/>
+  <img src="img.jpg" alt="WhisperTextAnalyzer 시스템 실행 예시" width="50%"/>
 </p>
 
 ---
