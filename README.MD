@@ -1,62 +1,139 @@
 # WhisperTextAnalyzer
 
 WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 감정 분석을 수행하는 End-to-End 파이프라인 시스템입니다.
+<p>
+  <img src="https://img.shields.io/badge/Python-3.10-blue?logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Redis-Broker-DC382D?logo=redis&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Celery-Task%20Queue-37814A?logo=celery&logoColor=white"/>
+  <img src="https://img.shields.io/badge/OpenAI-Whisper-3D3D3D?logo=openai&logoColor=white"/>
+  <img src="https://img.shields.io/badge/HuggingFace-Transformers-FFD21F?logo=huggingface&logoColor=black"/>
+  <img src="https://img.shields.io/badge/sounddevice-Audio-blueviolet"/>
+  <img src="https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Azure-Cloud%20Server-0078D4?logo=microsoftazure&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Linux-Server-FCC624?logo=linux&logoColor=black"/>
+  <img src="https://img.shields.io/badge/Nginx-Reverse%20Proxy-009639?logo=nginx&logoColor=white"/>
+  <img src="https://img.shields.io/badge/NVIDIA-RTX%203070-76B900?logo=nvidia&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Windows-10%2B-0078D6?logo=windows&logoColor=white"/>
+  <img src="https://img.shields.io/badge/ChatGPT-Assistant-10a37f?logo=openai&logoColor=white"/>
+  <img src="https://img.shields.io/badge/PyCharm-Professional-000000?logo=jetbrains&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Git-Version%20Control-F05032?logo=git&logoColor=white"/>
+</p>
+---
+## 📸 WhisperTextAnalyzer 시스템 실행 예시
+<p>
+  <img src="img.jpg" alt="WhisperTextAnalyzer 시스템 실행 예시" width="80%"/>
+</p>
 
 ---
-
 ## 📌 프로젝트 개요
-
 - 브라우저(Web Audio API + AudioWorklet)에서 마이크 입력을 캡처하여 FastAPI 서버로 전송
-- FastAPI WebSocket 서버가 오디오 데이터를 Redis broker로 전달
-- stt_worker가 OpenAI Whisper로 STT (Speech to Text) 수행
-- analyzer_worker가 Huggingface transformers로 감정 분석
-- listener_service가 결과를 통계 + 콘솔 + 파일로 출력
+- FastAPI WebSocket 서버가 오디오 데이터를 Redis Broker(stt_queue)로 전달
+- stt_worker가 OpenAI Whisper로 STT (Speech to Text) 수행 후 Redis Queue(analyzer_queue)에 결과 전달
+- analyzer_worker가 Huggingface Transformers로 감정 분석 수행
+- listener_service가 Redis Pub/Sub(result_channel, final_stats)을 통해 결과 및 통계 데이터를 발행
+- FastAPI가 Redis Pub/Sub 구독 → 클라이언트로 WebSocket 실시간 결과 업데이트
 
 ---
 
 ## 🛠️ 시스템 아키텍처
 
 ```
-Browser (AudioWorklet) → WebSocket
-↓
-FastAPI → Redis (Broker)
-↓
-stt_worker (Whisper STT)
-↓
+Browser (AudioWorklet) 
+        ↓
+    WebSocket
+        ↓
+FastAPI → Redis Queue (stt_queue)
+        ↓
+    stt_worker (Whisper STT)
+        ↓
+    Redis Queue (analyzer_queue)
+        ↓
 analyzer_worker (Sentiment Analysis)
-↓
-listener_service (Publish result + stats)
+        ↓
+    Redis Pub/Sub (result_channel, final_stats)
+        ↓
+listener_service (Publish result + stats → Redis Pub/Sub)
+        ↓
+    FastAPI (Redis Subscriber → WebSocket push)
+        ↓
+Browser 실시간 결과 업데이트
 ```
 
-참고: 개발 중 recorder_service로 로컬 테스트 가능 (배포에는 미포함)
+참고: 개발 중 recorder_service로 로컬 테스트 (배포에는 미포함)
 
+---
+## 🚀 실 서비스 배포 경험
+
+WhisperTextAnalyzer 프로젝트는 개발 → 테스트 → 실배포까지 모든 과정을 직접 수행했습니다.
+
+### 🛠️ 배포 과정
+- Azure Linux VM 실서버 구축
+- 개발 단계에서 ngrok로 HTTPS 개발 테스트
+- 무료 도메인 서비스 [DuckDNS](https://www.duckdns.org) 사용
+- Let's Encrypt로 SSL 인증서 발급 및 적용
+- nginx + Docker + FastAPI 연동하여 MSA 구조 구성
+- Celery Worker + Redis Broker + WebSocket 실시간 연동
+
+### 🌐 실 서비스 주소
+[https://whisperproject.duckdns.org/](https://whisperproject.duckdns.org/)
+```
 ---
 
 ## 📁 폴더 구조
 
 ```
 WhisperTextAnalyzer/
-├── analyzer_worker/
-├── fastapi_service/
-├── listener_service/
-├── recorder_service/ (로컬 테스트용)
-├── stt_worker/
-├── docker-compose.yml
-├── requirements.txt
-└── 기타 파일
+├── analyzer_worker/ # 감정 분석 Celery Worker (Huggingface Transformers)
+│ ├── Dockerfile
+│ ├── analyzer_worker.py
+│ └── 기타 설정 파일
+│
+├── fastapi_service/ # FastAPI WebSocket Server + 클라이언트 UI + Redis Subscriber
+│ ├── Dockerfile
+│ ├── fastapi_service.py
+│ └── 기타 설정 파일
+│
+├── listener_service/ # Redis Pub/Sub Listener → result_channel, final_stats 처리
+│ ├── Dockerfile
+│ ├── listener_service.py
+│ └── 기타 설정 파일
+│
+├── recorder_service/ # 🎙️ (로컬 테스트용) 마이크 입력 → Redis push
+│ ├── recorder_service.py
+│ └── 기타 설정 파일
+│
+├── stt_worker/ # Whisper 기반 STT Celery Worker
+│ ├── Dockerfile
+│ ├── stt_worker.py
+│ └── 기타 설정 파일
+│
+├── docker-compose.yml # 전체 컨테이너 오케스트레이션
+├── requirements.txt # Python 패키지 의존성 정의
+├── README.md # 프로젝트 문서
+└── 기타 파일 # .env, .gitignore 등 기타 설정 파일
 ```
 
 ---
 
 ## 💻 설치 및 실행 방법
 
-```bash
-# Docker 기반 실행
-$ docker-compose up --scale stt_worker=2 -d
+모든 서비스는 Docker Compose 기반으로 실행됩니다.  
+아래 명령어를 순서대로 입력하세요.
 
-# Windows: pool=solo 필수 → 이미 적용됨
+```bash
+# 1. 도커 이미지 빌드
+docker-compose build
+
+# 2. 컨테이너 실행 (stt_worker는 2개로 스케일링)
+docker-compose up --scale stt_worker=2 -d
 ```
 
+```bash
+💡 참고: 현재 compose에는 윈도용 --concurrency=1 --pool=solo 옵션이 이미 적용되어 있습니다.
+윈도우에서 사용시 stt_worker을 복사해서 stt_worker1로 사용하시면 됩니다.
+```
+---
 ### 📋 주요 컨테이너
 
 - redis : Broker 역할
@@ -142,24 +219,6 @@ async def startup_event():
 global model
 if model is None:
     model = load_model()
-```
-
----
-
-## 🚀 실 서비스 배포 예시
-
-### nginx + Docker + FastAPI
-
-```
-Client (Browser)
-↓
-nginx → FastAPI (WebSocket + STT)
-↓
-Redis (Broker)
-↓
-Celery Worker (STT + Analyzer)
-↓
-Listener + Dashboard
 ```
 
 ### nginx 설정 예시
