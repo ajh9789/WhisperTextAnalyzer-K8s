@@ -25,6 +25,17 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 <p>
   <img src="img.jpg" alt="WhisperTextAnalyzer 시스템 실행 예시" width="50%"/>
 </p>
+---
+
+## 🎉 최종 소감
+
+---
+- Python + FastAPI + Redis + Celery 기반의 STT와 감정 분석 기능으로 배포까지 개발 경험
+- Celery (비동기 task queue, worker 분산 처리 개념 학습)와 Redis (queue + pub/sub message broker 역할)를 실무 수준으로 이해
+- Docker 이해를 높일 수 있는 (컨테이너 기반 분산 시스템 구축, Windows + Linux 환경 차이, 이미지 최적화) 실습 경험
+- 실무 시스템 설계에 가깝게 하기 위해 최적화와 MSA (microservice architecture) 기반 유사한 구성까지 성공적으로 완수
+- WebSocket 소켓 통신 및 AudioWorklet을 통한 실시간 오디오 스트림 전송 기술 학습 및 구현
+---
 
 ---
 ## 📌 프로젝트 개요
@@ -76,7 +87,7 @@ WhisperTextAnalyzer 프로젝트는 개발 → 테스트 → 실배포까지 모
 - nginx + Docker + FastAPI 연동하여 MSA 구조 구성
 - Celery Worker + Redis Broker + WebSocket 실시간 연동
 
-### 🌐 실 서비스 주소
+### 🌐 실 서비스 주소(현재는 막힘!)
 [https://whisperproject.duckdns.org/](https://whisperproject.duckdns.org/)
 ```
 ---
@@ -263,17 +274,6 @@ server {
 | 실시간 AudioWorklet | ✅ 적용 완료 |
 | Multi User Buffer | ✅ 적용 완료 |
 | Mobile Threshold 최적화 | ✅ 적용 완료 |
-
----
-
-## 🎉 최종 소감
-
-- Python + FastAPI + Redis + Celery + Whisper 실서비스 개발 경험
-- Docker + Windows/Linux 환경에서의 안정성 개선 학습
-- AudioWorklet을 통한 실시간 오디오 스트림 전송 경험
-- 실무 시스템 설계 + 최적화 + MSA 기반 구성까지 성공적으로 완수
-
----
 
 ## 📢 주의사항
 
