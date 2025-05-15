@@ -97,28 +97,29 @@ WhisperTextAnalyzer/
 ├── analyzer_worker/ # 감정 분석 Celery Worker (Huggingface Transformers)
 │ ├── Dockerfile
 │ ├── analyzer_worker.py
-│ └── 기타 설정 파일
+│ └── requirements.txt
 │
 ├── fastapi_service/ # FastAPI WebSocket Server + 클라이언트 UI + Redis Subscriber
 │ ├── Dockerfile
 │ ├── fastapi_service.py
-│ └── 기타 설정 파일
+│ └── requirements.txt
 │
 ├── listener_service/ # Redis Pub/Sub Listener → result_channel, final_stats 처리
 │ ├── Dockerfile
 │ ├── listener_service.py
-│ └── 기타 설정 파일
+│ └── requirements.txt
 │
 ├── recorder_service/ # 🎙️ (로컬 테스트용) 마이크 입력 → Redis push
+│ ├── Dockerfile
 │ ├── recorder_service.py
-│ └── 기타 설정 파일
+│ └── requirements.txt
 │
 ├── stt_worker/ # Whisper 기반 STT Celery Worker
 │ ├── Dockerfile
 │ ├── stt_worker.py
-│ └── 기타 설정 파일
+│ └── requirements.txt
 │
-├── docker-compose.yml # 전체 컨테이너 오케스트레이션
+├── docker-compose.yml # 도커 컴포즈
 ├── requirements.txt # Python 패키지 의존성 정의
 ├── README.md # 프로젝트 문서
 └── 기타 파일 # .env, .gitignore 등 기타 설정 파일
@@ -209,13 +210,7 @@ connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
 if (energy < 0.00001) return true;
 ```
 
-### 1️⃣0️⃣ listener 통계 포맷 개선
-
-```python
-f"긍정: {positive_count}회 {pos_percent:.0f}% / 부정: {negative_count}회 {neg_percent:.0f}%"
-```
-
-### 1️⃣1️⃣ FastAPI on_event() 개선 → redis_subscriber task 안정화
+### 1️⃣0️⃣ FastAPI on_event() 개선 → redis_subscriber task 안정화
 
 ```python
 @app.on_event("startup")
@@ -223,13 +218,6 @@ async def startup_event():
     asyncio.create_task(redis_subscriber())
 ```
 
-### 1️⃣2️⃣ Celery 모델 RAM 중복 문제 → global + if model is None 패턴으로 해결
-
-```python
-global model
-if model is None:
-    model = load_model()
-```
 
 ### nginx 설정 예시
 
