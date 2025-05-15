@@ -88,7 +88,6 @@ WhisperTextAnalyzer 프로젝트는 개발 → 테스트 → 실배포까지 모
 
 ### 🌐 실 서비스 주소(현재는 막힘!)
 [https://whisperproject.duckdns.org/](https://whisperproject.duckdns.org/)
-```
 ---
 
 ## 📁 폴더 구조
