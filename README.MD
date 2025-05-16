@@ -43,6 +43,7 @@
 - 실제 서비스 구조를 고려해 모듈 간 역할 분리, 비동기 병렬 처리, 메시지 큐 흐름 등을 포함한 MSA 유사 아키텍처를 구현
 - WebSocket 기반 실시간 통신과 Web Audio API의 AudioWorklet을 활용해, 브라우저에서 실시간 마이크 오디오 스트림을 수집하고 Whisper 모델과 연동
 - AudioWorklet 내에 VAD(Vocal Activity Detection) 필터를 적용하여 무음 구간을 제거함으로써, 네트워크 부하와 STT 비용을 효율적으로 절감
+- 일부 세부 구현 및 문법 확인 과정에서는 ChatGPT를 적극 활용하여 생산성을 높였으며, 전반적인 설계와 디버깅은 직접 수행
 ---
 ## 📌 프로젝트 개요
 - 브라우저(Web Audio API + AudioWorklet)에서 마이크 입력을 캡처하여 FastAPI 서버로 전송
@@ -325,6 +326,7 @@ services:
 ## 🚀 실 서비스 배포 경험
 
 WhisperTextAnalyzer 프로젝트는 개발 → 테스트 → 실배포까지 모든 과정을 직접 수행했습니다.
+> 💡 실서비스 배포 과정에서 Nginx 설정, Docker 컨테이너 연결, HTTPS 인증 등 일부 생소한 구성 요소에 대해서는 ChatGPT의 도움을 참고하며 구성 효율을 높였습니다. 전체 배포 흐름과 연동 구조는 직접 설계 및 검증을 통해 완성했습니다.
 
 ### 🛠️ 배포 과정
 - Azure Linux VM 실서버 구축
