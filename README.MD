@@ -48,23 +48,28 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 ## 🛠️ 시스템 아키텍처
 
 ```
-Browser (AudioWorklet) 
+Browser (AudioWorklet: 마이크 입력 + 16kHz PCM 변환)
         ↓
-    WebSocket
+    WebSocket 전송
         ↓
-FastAPI → Redis Queue (stt_queue)
+FastAPI 서버
         ↓
-    stt_worker (Whisper STT)
+Celery Task (transcribe_audio) 호출
         ↓
-    Redis Queue (analyzer_queue)
+stt_worker (Whisper STT 처리)
         ↓
-analyzer_worker (Sentiment Analysis)
+Celery Task (analyze_text) 호출
         ↓
-    Redis Pub/Sub (result_channel, final_stats)
+analyzer_worker (감정 분석 처리 - Huggingface)
         ↓
-listener_service (Publish result + stats → Redis Pub/Sub)
+Redis Pub/Sub (result_channel로 발행)
         ↓
-    FastAPI (Redis Subscriber → WebSocket push)
+listener_service (result_channel 구독,
+                  통계 처리 후 메시지를 result_messages, final_stats에 각각 발행)
+        ↓
+FastAPI (result_messages, final_stats 각각 구독)
+        ↓
+    WebSocket 전송
         ↓
 Browser 실시간 결과 업데이트
 ```
