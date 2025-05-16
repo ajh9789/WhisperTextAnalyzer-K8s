@@ -175,27 +175,27 @@ async def startup_event():
 ```
 ### 1️⃣1️⃣ WebSocket 통신 구조 학습 → 연결 유지 방식 및 WebSocket 특성 학습  
 
-WebSocket은 HTTP와 달리 지속적인 양방향 연결을 유지하며,  
+> WebSocket은 HTTP와 달리 지속적인 양방향 연결을 유지하며,  
 FastAPI 내부에서 .send_text() 또는 .send_bytes()를 통해 실시간 푸시가 가능함.  
 클라이언트가 명시적으로 연결을 닫거나 네트워크 오류가 발생하지 않는 이상 연결은 계속 유지됨.  
 → 오디오 버퍼를 1초마다 전송해도 연결을 새로 여는 구조는 아님
 ---
 ### 1️⃣2️⃣ AudioWorklet 동작 원리 및 128프레임 처리 주기 학습  
 
-AudioWorkletProcessor는 약 128 샘플 단위 / 8ms 간격으로 process() 호출됨 (sampleRate: 16000 기준)  
+> AudioWorkletProcessor는 약 128 샘플 단위 / 8ms 간격으로 process() 호출됨 (sampleRate: 16000 기준)  
 내부에서 Float32 → Int16 변환 후, port.postMessage()를 통해 FastAPI로 전달  
 WebSocket 전송 시 자동으로 ArrayBuffer → 바이너리 스트림으로 직렬화됨 → 서버에서는 receive_bytes()로 수신  
 각 프레임의 에너지를 계산하여 VAD 필터링을 적용함 (energy < 0.0005 시 무음으로 판단)  
 ---
 ### 1️⃣3️⃣ PCM vs WAV 차이 학습 → Whisper 입력 구조 학습  
 
-PCM은 디지털 오디오의 원본(raw) 데이터이고, WAV는 여기에 헤더를 붙인 파일 포맷  
+> PCM은 디지털 오디오의 원본(raw) 데이터이고, WAV는 여기에 헤더를 붙인 파일 포맷  
 Whisper는 16kHz, mono 채널, int16 PCM 포맷을 요구함  
 따라서 scipy.io.wavfile.write()를 통해 .wav 파일로 저장 후 Whisper 입력에 사용  
 ---
 ### 1️⃣4️⃣ Redis Pub/Sub 구조 학습 → 다중 채널 구독 및 재발행 처리 학습  
 
-listener_service는 result_channel을 구독하여 STT 결과 수신  
+> listener_service는 result_channel을 구독하여 STT 결과 수신  
 결과 메시지는 result_messages, 통계 메시지는 final_stats 채널로 각각 재발행  
 FastAPI는 두 채널을 asyncio.create_task()로 구독하여, WebSocket을 통해 브라우저에 실시간 전송 
 ---
