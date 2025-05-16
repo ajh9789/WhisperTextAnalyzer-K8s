@@ -35,6 +35,7 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 - Docker를 기반으로 Windows/Linux 간 환경 차이, 이미지 최적화, 컨테이너 간 통신 구성 등 실무와 유사한 인프라 구축 경험
 - 실제 서비스 구조를 고려해 모듈 간 역할 분리, 비동기 병렬 처리, 메시지 큐 흐름 등을 포함한 MSA 유사 아키텍처를 구현
 - WebSocket 기반 실시간 통신과 Web Audio API의 AudioWorklet을 활용해, 브라우저에서 실시간 마이크 오디오 스트림을 수집하고 Whisper 모델과 연동
+- AudioWorklet 내에 VAD(Vocal Activity Detection) 필터를 적용하여 무음 구간을 선제적으로 제거함으로써, 네트워크 부하와 STT 비용을 효율적으로 절감
 ---
 ## 📌 프로젝트 개요
 - 브라우저(Web Audio API + AudioWorklet)에서 마이크 입력을 캡처하여 FastAPI 서버로 전송
@@ -56,11 +57,11 @@ FastAPI 서버
         ↓
 Celery Task (transcribe_audio) 호출
         ↓
-stt_worker (Whisper STT 처리)
+stt_worker (음성 인식 처리 - OpenAI Whisper)
         ↓
 Celery Task (analyze_text) 호출
         ↓
-analyzer_worker (감정 분석 처리 - Huggingface)
+analyzer_worker (감정 분석 처리 - Huggingface Transformers)
         ↓
 Redis Pub/Sub (result_channel로 발행)
         ↓
@@ -221,7 +222,18 @@ async def startup_event():
     asyncio.create_task(redis_subscriber())
 ```
 
+## ✅ 최종 개선 버전 핵심 요약
 
+| 개선 항목 | 상태 |
+|-----------|------|
+| Whisper 모델 STT | ✅ 완성 |
+| Sentiment 분석 | ✅ 완성 |
+| Listener 통계 | ✅ 개선 완료 |
+| FastAPI WebSocket 서버 | ✅ 개선 완료 |
+| 실시간 AudioWorklet | ✅ 적용 완료 |
+| Multi User Buffer | ✅ 적용 완료 |
+| Mobile Threshold 최적화 | ✅ 적용 완료 |
+---
 ### nginx 설정 예시
 
 ```nginx
@@ -249,21 +261,6 @@ server {
     }
 }
 ```
-
----
-
-## ✅ 최종 개선 버전 핵심 요약
-
-| 개선 항목 | 상태 |
-|-----------|------|
-| Whisper 모델 STT | ✅ 완성 |
-| Sentiment 분석 | ✅ 완성 |
-| Listener 통계 | ✅ 개선 완료 |
-| FastAPI WebSocket 서버 | ✅ 개선 완료 |
-| 실시간 AudioWorklet | ✅ 적용 완료 |
-| Multi User Buffer | ✅ 적용 완료 |
-| Mobile Threshold 최적화 | ✅ 적용 완료 |
-
 ## 📢 주의사항
 
 본 프로젝트는 학습 및 데모용이며, 실제 서비스 배포 시 HTTPS 및 보안 설정을 반드시 강화하세요.
