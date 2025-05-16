@@ -277,6 +277,7 @@ API 서버와 무거운 작업을 **비동기/비차단 방식으로 분리**하
 | 장애 격리              | 하나의 Worker 오류 발생 시 → 전체 서버 영향 없이 개별 장애만 발생 (서비스 안정성 향상)          |
 | 확장성                 | 작업 종류(stt / analyzer 등)별로 Worker를 나누거나, Worker를 다중 실행하여 수평 확장 가능     |
 | 재시도 / 타임아웃 설정    | Celery Task에 retry, acks_late, time_limit 옵션 등을 추가해 작업 실패에 유연하게 대응 가능     |
+
 🛠️ 기본 Celery Task 호출 흐름  
 
 ```
