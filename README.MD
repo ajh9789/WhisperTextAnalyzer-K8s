@@ -30,12 +30,11 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 ## 🎉 최종 소감
 
 ---
-- Python + FastAPI + Redis + Celery 기반의 STT와 감정 분석 기능으로 배포까지 개발 경험
-- Celery (비동기 task queue, worker 분산 처리 개념 학습)와 Redis (queue + pub/sub message broker 역할)를 실무 수준으로 이해
-- Docker 이해를 높일 수 있는 (컨테이너 기반 분산 시스템 구축, Windows + Linux 환경 차이, 이미지 최적화) 실습 경험
-- 실무 시스템 설계에 가깝게 하기 위해 최적화와 MSA (microservice architecture) 기반 유사한 구성까지 성공적으로 완수
-- WebSocket 소켓 통신 및 AudioWorklet을 통한 실시간 오디오 스트림 전송 기술 학습 및 구현
-
+- Python + FastAPI + Redis + Celery 기반의 STT 및 감정 분석 파이프라인을 직접 설계하고, 혼자 개발부터 배포까지 전 과정을 경험
+- Celery(비동기 Task Queue)와 Redis(Queue 및 Pub/Sub 메시지 브로커)를 활용하여 MSA(Microservice Architecture) 스타일의 구조를 구성하고, 실무에 가까운 처리 흐름과 동작 원리를 체계적으로 학습
+- Docker를 기반으로 Windows/Linux 간 환경 차이, 이미지 최적화, 컨테이너 간 통신 구성 등 실무와 유사한 인프라 구축 경험
+- 실제 서비스 구조를 고려해 모듈 간 역할 분리, 비동기 병렬 처리, 메시지 큐 흐름 등을 포함한 MSA 유사 아키텍처를 구현
+- WebSocket 기반 실시간 통신과 Web Audio API의 AudioWorklet을 활용해, 브라우저에서 실시간 마이크 오디오 스트림을 수집하고 Whisper 모델과 연동
 ---
 ## 📌 프로젝트 개요
 - 브라우저(Web Audio API + AudioWorklet)에서 마이크 입력을 캡처하여 FastAPI 서버로 전송
@@ -44,7 +43,6 @@ WhisperTextAnalyzer는 실시간 음성 스트림을 텍스트로 변환하고 �
 - analyzer_worker가 Huggingface Transformers로 감정 분석 수행
 - listener_service가 Redis Pub/Sub(result_channel, final_stats)을 통해 결과 및 통계 데이터를 발행
 - FastAPI가 Redis Pub/Sub 구독 → 클라이언트로 WebSocket 실시간 결과 업데이트
-
 ---
 
 ## 🛠️ 시스템 아키텍처
