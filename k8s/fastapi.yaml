@@ -1,34 +1,35 @@
 apiVersion: apps/v1  
 kind: Deployment  
 metadata:  
-  name: fastapi  
+  name: fastapi_service  
 spec:  
   replicas: 1  
   selector:  
     matchLabels:  
-      app: fastapi  
+      app: fastapi_service
   template:  
     metadata:  
       labels:  
-        app: fastapi  
+        app: fastapi_service  
     spec:  
       containers:  
-        - name: fastapi  
-          image: ajh9789/fastapi:latest  
+        - name: fastapi_service  
+          image: ajh9789/fastapi_service:latest  
           ports:  
             - containerPort: 8000  
           env:  
             - name: REDIS_HOST  
-              value: redis  
+              value: redis
+
 ---  
 apiVersion: v1  
 kind: Service  
 metadata:  
-  name: fastapi  
+  name: fastapi_service  
 spec:  
   type: NodePort  
   selector:  
-    app: fastapi  
+    app: fastapi_service
   ports:  
     - port: 8000  
       targetPort: 8000  
