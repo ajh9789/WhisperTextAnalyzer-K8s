@@ -1,19 +1,19 @@
 apiVersion: apps/v1  
 kind: Deployment  
 metadata:  
-  name: fastapi_service  
+  name: fastapi-service  
 spec:  
   replicas: 1  
   selector:  
     matchLabels:  
-      app: fastapi_service
+      app: fastapi-service
   template:  
     metadata:  
       labels:  
-        app: fastapi_service  
+        app: fastapi-service  
     spec:  
       containers:  
-        - name: fastapi_service  
+        - name: fastapi-service  
           image: ajh9789/fastapi_service:latest  
           ports:  
             - containerPort: 8000  
@@ -25,11 +25,11 @@ spec:
 apiVersion: v1  
 kind: Service  
 metadata:  
-  name: fastapi_service  
+  name: fastapi-service  
 spec:  
   type: NodePort  
   selector:  
-    app: fastapi_service
+    app: fastapi-service
   ports:  
     - port: 8000  
       targetPort: 8000  
