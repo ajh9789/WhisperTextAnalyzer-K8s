@@ -17,7 +17,7 @@ connected_users = {}  # {websocket: {"buffer": bytearray, "start_time": float}}
 
 @app.get("/")
 async def get():
-    return HTMLResponse("<h1>🎙️ 실시간 감정 분석 서버</h1>")
+    return HTMLResponse(html)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
