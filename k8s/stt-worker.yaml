@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: stt-worker
-          image: ajh9789/stt_worker:V1
+          image: ajh9789/stt_worker:latest
+          imagePullPolicy: Always
           env:
             - name: REDIS_HOST
               value: redis

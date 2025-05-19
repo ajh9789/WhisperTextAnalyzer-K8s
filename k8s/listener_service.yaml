@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: listener-service
-          image: ajh9789/listener_service:V1
+          image: ajh9789/listener_service:latest
+          imagePullPolicy: Always
           env:
             - name: REDIS_HOST
               value: redis
