@@ -15,7 +15,6 @@ classifier = pipeline(
 
 @celery.task(name="analyzer_worker.analyzer_text", queue="analyzer_queue")
 def analyzer_text(text):
-    global positive_count, positive_score_sum, negative_count, negative_score_sum
     print("[STT] → [Analyzer] Celery 전달 text 수신")
     try:
         decoded_text = text
