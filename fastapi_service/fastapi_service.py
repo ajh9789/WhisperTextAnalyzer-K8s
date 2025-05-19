@@ -17,7 +17,7 @@ connected_users = {}  # {websocket: {"buffer": bytearray, "start_time": float}}
 
 @app.get("/")
 async def get():
-    return HTMLResponse(html)
+    return HTMLResponse("<h1>🎙️ 실시간 감정 분석 서버</h1>")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -141,27 +141,6 @@ html = """
 
             document.getElementById("startButton").onclick = async function() {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                let pingStart = null;
-                let latencyLog = [];
-                
-                setInterval(() => {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        pingStart = performance.now();
-                        ws.send("!ping");  // fastapi가 이걸 인식하진 않지만 로그 측정용
-                    }
-                }, 5000);  // 5초마다 테스트
-                
-                ws.onmessage = function(event) {
-                    const data = event.data;
-                    const elapsed = pingStart ? performance.now() - pingStart : null;
-                
-                    if (elapsed !== null && !data.startsWith("PEOPLE:") && !data.includes("Listener 통계")) {
-                        console.log(`🔁 WebSocket latency: ${elapsed.toFixed(1)}ms`);
-                        latencyLog.push(elapsed);
-                    }
-                
-                    // 기존 메시지 처리 로직 유지
-                };
                 console.warn("이미 WebSocket 연결 중입니다.");
                 return;
                 }
