@@ -21,5 +21,3 @@ spec:
           env:
             - name: REDIS_HOST
               value: redis
-            - name: DOCKER
-              value: "1"

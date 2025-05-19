@@ -6,7 +6,7 @@ import redis
 from scipy.signal import resample_poly
 
 # ✅ Redis 연결 정보 설정
-REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
+REDIS_HOST=os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = 6379
 
 # ✅ 오디오 녹음 설정
