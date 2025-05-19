@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listener-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: listener-service
+  template:
+    metadata:
+      labels:
+        app: listener-service
+    spec:
+      containers:
+        - name: listener-service
+          image: ajh9789/listener_service:latest
+          env:
+            - name: REDIS_HOST
+              value: redis

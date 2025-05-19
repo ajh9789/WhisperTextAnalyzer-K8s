@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analyzer-worker
+  template:
+    metadata:
+      labels:
+        app: analyzer-worker
+    spec:
+      containers:
+        - name: analyzer-worker
+          image: ajh9789/analyzer_worker:latest
+          env:
+            - name: REDIS_HOST
+              value: redis

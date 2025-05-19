@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stt-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stt-worker
+  template:
+    metadata:
+      labels:
+        app: stt-worker
+    spec:
+      containers:
+        - name: stt-worker
+          image: ajh9789/stt_worker:latest
+          env:
+            - name: REDIS_HOST
+              value: redis
