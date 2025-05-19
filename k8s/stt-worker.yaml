@@ -16,6 +16,10 @@ spec:
         - name: stt-worker
           image: ajh9789/stt_worker:latest
           imagePullPolicy: Always
+          command: [ "celery" ]
+          args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", - "stt_queue", "--concurrency=2" ]
           env:
             - name: REDIS_HOST
               value: redis
+            - name: DOCKER
+              value: "1"

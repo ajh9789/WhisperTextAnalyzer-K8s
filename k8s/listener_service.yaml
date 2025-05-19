@@ -16,6 +16,10 @@ spec:
         - name: listener-service
           image: ajh9789/listener_service:latest
           imagePullPolicy: Always
+          command: ["python"]
+          args: ["-m", "listener_service.listener_service"]
           env:
             - name: REDIS_HOST
               value: redis
+            - name: DOCKER
+              value: "1"
