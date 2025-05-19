@@ -169,7 +169,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
-        TIMEOUT_SECONDS = 1  # 🎯 개인 버퍼 기준
+        TIMEOUT_SECONDS = 2  # 🎯 개인 버퍼 기준
 
         while True:
             audio_chunk = await websocket.receive_bytes()
