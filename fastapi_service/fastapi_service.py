@@ -215,8 +215,9 @@ async def websocket_endpoint(websocket: WebSocket):
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
+
+# 서버 재시작 시 Pub/Sub 충돌 방지용 polling 방식 적용
 async def redis_subscriber():
-    # Redis 연결 및 PubSub 구독
     redis = redis_from_url(
         f"redis://{REDIS_HOST}:{REDIS_PORT}/0",
         encoding="utf-8",
@@ -226,20 +227,17 @@ async def redis_subscriber():
     await pubsub.subscribe("final_stats", "result_messages")
     print("[FastAPI] Subscribed to final_stats & result_messages")
 
-    async for message in pubsub.listen():
-        if message["type"] != "message":
-            continue
-
-        data = message["data"]
-
-        # 안전하게 유저 리스트 복사 후 전송
-        for user in list(connected_users):
-            try:
-                await user.send_text(data)
-            except Exception:
-                connected_users.pop(user, None)
+    while True:
+        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.1)
+        if message and message["type"] == "message":
+            data = message["data"]
+            for user in list(connected_users):
+                try:
+                    await user.send_text(data)
+                except Exception:
+                    connected_users.pop(user, None)
+        await asyncio.sleep(0.1)
 
 @app.on_event("startup")
 async def startup_event():
-    # 서버 시작 시 Redis 구독 루프 실행
-    asyncio.create_task(redis_subscriber())
+    asyncio.create_task(redis_subscriber())  # 서버 재시작 시 Pub/Sub 충돌 방지 수정 완료
