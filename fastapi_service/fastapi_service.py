@@ -186,7 +186,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             buffer.extend(audio_chunk)
 
-            # 🎯 2초 경과 시 개인 버퍼 STT task 전송
+            # 🎯 n초 경과 시 개인 버퍼 STT task 전송
             if asyncio.get_event_loop().time() - start_time >= TIMEOUT_SECONDS:
                 print(f"[FastAPI] 🎯 사용자 {id(websocket)} → stt_worker 전달 (size: {len(buffer)})")
                 celery.send_task(
