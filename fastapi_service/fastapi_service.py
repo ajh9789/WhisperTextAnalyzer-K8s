@@ -66,8 +66,8 @@ html = """
                         people.textContent = "연결 인원:" + data.replace("PEOPLE:", "");
                         return;
                     }
-                    if (data.startsWith(" Listener 통계 → ")) {
-                        stats.textContent = data.replace(" Listener 통계 → ", "");
+                    if (data.startsWith("Listener 통계 → ")) {
+                        stats.textContent = data.replace("Listener 통계 → ", "");
                         return;
                     }
                     var div = document.createElement("div");

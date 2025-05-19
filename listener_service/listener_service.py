@@ -47,7 +47,7 @@ for message in result_pubsub.listen():
 
         # ✔ 통계 메시지 final_stats로 publish (stats 바 영역)
         stats = (
-            f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
+            f"Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
         )
         logging.info(stats)
         r.publish("final_stats", stats)
