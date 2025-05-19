@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: fastapi-service
-          image: ajh9789/fastapi_service:latest  # ← 이건 DockerHub이므로 언더스코어 OK
+          image: ajh9789/fastapi_service:V1  # ← 이건 DockerHub이므로 언더스코어 OK
           ports:
             - containerPort: 8000
           env:

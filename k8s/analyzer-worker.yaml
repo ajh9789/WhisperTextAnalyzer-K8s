@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: analyzer-worker
-          image: ajh9789/analyzer_worker:latest
+          image: ajh9789/analyzer_worker:V1
           env:
             - name: REDIS_HOST
               value: redis
