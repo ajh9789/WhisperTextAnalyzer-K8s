@@ -17,7 +17,9 @@ spec:
           image: ajh9789/analyzer_worker:latest
           imagePullPolicy: Always
           command: ["celery"]
-          args: ["-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=2"]
+          args: ["-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=1","--pool=solo"]
           env:
             - name: REDIS_HOST
               value: redis
+            - name: DOCKER
+              value: "1"

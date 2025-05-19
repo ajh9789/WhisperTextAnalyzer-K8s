@@ -7,7 +7,7 @@ from redis.asyncio import from_url as redis_from_url
 
 app = FastAPI()
 
-REDIS_HOST=os.getenv("REDIS_HOST", "redis")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 
@@ -194,6 +194,7 @@ async def websocket_endpoint(websocket: WebSocket):
             #  일정 시간 경과 시 Celery로 오디오 전송
             if asyncio.get_event_loop().time() - user_state["start_time"] >= TIMEOUT_SECONDS:
                 try:
+                    print(f"[FastAPI] 🎯 사용자 {id(websocket)} → stt_worker 전달 (size: {len(buffer)})")
                     celery.send_task(
                         "stt_worker.transcribe_audio",
                         args=[bytes(buffer)],

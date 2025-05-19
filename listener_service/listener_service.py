@@ -2,7 +2,7 @@ import os
 import redis
 import logging
 
-REDIS_HOST=os.getenv("REDIS_HOST", "redis")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
