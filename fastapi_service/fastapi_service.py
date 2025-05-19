@@ -1,16 +1,105 @@
 import os
-from redis import asyncio as aioredis
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import time
+import asyncio
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse
 from celery import Celery
-import asyncio
+from redis.asyncio import from_url as redis_from_url
+
 
 app = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
 celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
-connected_users = set()
+
+connected_users = {}  # {websocket: {"buffer": bytearray, "start_time": float}}
+
+@app.get("/")
+async def get():
+    return HTMLResponse("<h1>🎙️ 실시간 감정 분석 서버</h1>")
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    redis = redis_from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+    try:
+        await redis.ping()
+    except Exception:
+        await websocket.close()
+        return
+
+    await websocket.accept()
+    connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
+    for user in connected_users:
+        await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+    try:
+        TIMEOUT_SECONDS = 1
+        while True:
+            audio_chunk = await websocket.receive_bytes()
+            user_state = connected_users.get(websocket)
+            if not user_state:
+                break
+
+            buffer = user_state["buffer"]
+            if user_state["start_time"] is None:
+                user_state["start_time"] = asyncio.get_event_loop().time()
+
+            buffer.extend(audio_chunk)
+
+            if asyncio.get_event_loop().time() - user_state["start_time"] >= TIMEOUT_SECONDS:
+                try:
+                    print(f"[FastAPI] 🎯 사용자 {id(websocket)} → stt_worker 전달 (size: {len(buffer)})")
+                    celery.send_task(
+                        "stt_worker.transcribe_audio",
+                        args=[bytes(buffer)],
+                        queue="stt_queue"
+                    )
+                except Exception as e:
+                    print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
+                user_state["buffer"] = bytearray()
+                user_state["start_time"] = None
+
+    except WebSocketDisconnect:
+        connected_users.pop(websocket, None)
+        for user in connected_users:
+            await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+# 서버 재시작 시 Pub/Sub 충돌 방지용 polling 방식 적용
+async def redis_subscriber():
+    redis = redis_from_url(
+        f"redis://{REDIS_HOST}:{REDIS_PORT}/0",
+        encoding="utf-8",
+        decode_responses=True
+    )
+    pubsub = redis.pubsub()
+    await pubsub.subscribe("final_stats", "result_messages")
+    print("[FastAPI] Subscribed to final_stats & result_messages")
+
+    while True:
+        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.1)
+        if message and message["type"] == "message":
+            data = message["data"]
+            for user in list(connected_users):
+                try:
+                    await user.send_text(data)
+                except Exception:
+                    connected_users.pop(user, None)
+        await asyncio.sleep(0.1)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(redis_subscriber())  # 서버 재시작 시 Pub/Sub 충돌 방지 수정 완료
+
+@app.get("/ping")
+async def ping(request: Request):
+    start = time.perf_counter()
+    redis = redis_from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True)
+    await redis.ping()
+    duration = time.perf_counter() - start
+    return {"latency_ms": round(duration * 1000, 2)}
+
+
 
 html = """
 <!DOCTYPE html>
@@ -52,6 +141,27 @@ html = """
 
             document.getElementById("startButton").onclick = async function() {
             if (ws && ws.readyState === WebSocket.OPEN) {
+                let pingStart = null;
+                let latencyLog = [];
+                
+                setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        pingStart = performance.now();
+                        ws.send("!ping");  // fastapi가 이걸 인식하진 않지만 로그 측정용
+                    }
+                }, 5000);  // 5초마다 테스트
+                
+                ws.onmessage = function(event) {
+                    const data = event.data;
+                    const elapsed = pingStart ? performance.now() - pingStart : null;
+                
+                    if (elapsed !== null && !data.startsWith("PEOPLE:") && !data.includes("Listener 통계")) {
+                        console.log(`🔁 WebSocket latency: ${elapsed.toFixed(1)}ms`);
+                        latencyLog.push(elapsed);
+                    }
+                
+                    // 기존 메시지 처리 로직 유지
+                };
                 console.warn("이미 WebSocket 연결 중입니다.");
                 return;
                 }
@@ -144,91 +254,4 @@ html = """
 """
 
 
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
-
-
-connected_users = {}  # ✅ set → dict (websocket: {"buffer": bytearray, "start_time": float})
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    redis = aioredis.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
-    try:
-        await redis.ping()
-    except Exception:
-        await websocket.close()
-        return
-
-    await websocket.accept()
-    # ✅ 개인 버퍼 생성
-    connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
-
-    # ✅ 연결 인원 브로드캐스트
-    for user in connected_users:
-        await user.send_text(f"PEOPLE:{len(connected_users)}")
-
-    try:
-        TIMEOUT_SECONDS = 2  # 🎯 개인 버퍼 기준
-
-        while True:
-            audio_chunk = await websocket.receive_bytes()
-            user_state = connected_users.get(websocket)
-            if user_state is None:
-                break  # 연결 끊겼을 경우
-
-            buffer = user_state["buffer"]
-            start_time = user_state["start_time"]
-
-            if not start_time:
-                start_time = asyncio.get_event_loop().time()
-                user_state["start_time"] = start_time
-
-            buffer.extend(audio_chunk)
-
-            # 🎯 n초 경과 시 개인 버퍼 STT task 전송
-            if asyncio.get_event_loop().time() - start_time >= TIMEOUT_SECONDS:
-                print(f"[FastAPI] 🎯 사용자 {id(websocket)} → stt_worker 전달 (size: {len(buffer)})")
-                celery.send_task(
-                    "stt_worker.transcribe_audio",
-                    args=[bytes(buffer)],
-                    queue="stt_queue"
-                )
-                # ✅ 개인 버퍼 초기화
-                user_state["buffer"] = bytearray()
-                user_state["start_time"] = None
-
-    except WebSocketDisconnect:
-        # ✅ 연결 해제 시 개인 버퍼 제거
-        if websocket in connected_users:
-            del connected_users[websocket]
-
-        # ✅ 인원 수 업데이트
-        for user in connected_users:
-            await user.send_text(f"PEOPLE:{len(connected_users)}")
-
-
-async def redis_subscriber():
-    redis = await aioredis.from_url(
-        f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True
-    )
-    pubsub = redis.pubsub()
-    await pubsub.subscribe("final_stats", "result_messages")
-    print("[fastapi] ✅ Subscribed to final_stats & result_messages")
-
-    async for message in pubsub.listen():
-        if message["type"] != "message":
-            continue
-
-        data = message["data"]
-        for user in connected_users.copy():
-            try:
-                await user.send_text(data)
-            except Exception:
-                connected_users.remove(user)
-
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(redis_subscriber())
 
