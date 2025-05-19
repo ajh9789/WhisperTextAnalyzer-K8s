@@ -6,4 +6,4 @@ RUN pip install --upgrade pip
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-CMD ["celery", "-A", "stt_worker.stt_worker:celery", "worker", "-Q", "stt_queue", "--loglevel=info", "concurrency=3"]
+CMD ["celery", "-A", "stt_worker:celery", "worker", "-Q", "stt_queue", "--loglevel=info", "concurrency=3"]
