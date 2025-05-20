@@ -179,7 +179,14 @@ html = """
                 return;
                 }
                 ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+        function resolveWebSocketURL(path = "/ws") {
+            const loc = window.location;
+            const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
+            const port = loc.port ? `:${loc.port}` : "";
+            return `${protocol}${loc.hostname}${port}${path}`;
+        }
 
+                ws = new WebSocket(resolveWebSocketURL("/ws"));
                 ws.onopen = () => console.log("✅ WebSocket 연결 성공");
                 ws.onclose = () => console.log("❌ WebSocket 연결 종료");
 
