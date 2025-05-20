@@ -232,19 +232,26 @@ html = """
 
         <script type="worklet">
         class AudioProcessor extends AudioWorkletProcessor {
+            constructor() {
+                super();
+                // ✅ 모바일과 PC 구분 후 에너지 기준치 설정
+                this.isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(globalThis.navigator.userAgent);
+                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
+            }
+
             process(inputs, outputs, parameters) {
                 const input = inputs[0];
                 if (input.length > 0) {
                     const channelData = input[0];
 
-                    // ✅ VAD: energy filter
+                    // ✅ VAD energy filter
                     let energy = 0;
                     for (let i = 0; i < channelData.length; i++) {
                         energy += Math.abs(channelData[i]);
                     }
                     energy /= channelData.length;
 
-                    if (energy < 0.0005) return true;  // ✅ silence skip
+                    if (energy < this.energyThreshold) return true;  // ✅ silence skip
 
                     // ✅ Float32 → Int16 변환
                     const int16Buffer = new Int16Array(channelData.length);
@@ -261,7 +268,6 @@ html = """
         }
         registerProcessor('audio-processor', AudioProcessor);
         </script>
-
     </body>
 </html>
 """
