@@ -1,27 +1,46 @@
 import os
-import time
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from celery import Celery
+from prometheus_client import Counter, generate_latest
+from fastapi import Response
 from redis.asyncio import from_url as redis_from_url
-
+from celery import Celery
 
 app = FastAPI()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
 REDIS_PORT = 6379
-celery = Celery("fastapi_service", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+celery = Celery("fastapi_service", broker=redis_url)
 
-connected_users = {}  # {websocket: {"buffer": bytearray, "start_time": float}}
+connected_users = {}
+positive_count = 0
+negative_count = 0
+http_requests = Counter("http_requests_total", "Total HTTP Requests")
 
 @app.get("/")
 async def get():
-    return HTMLResponse("<h1>🎙️ 실시간 감정 분석 서버</h1>")
+    http_requests.inc()
+    return HTMLResponse(html)
 
+# api 만들기
+# 부정 긍정 통계 카운트 반환
+@app.get("/status")
+def status():
+    return {
+        "positive": positive_count,
+        "negative": negative_count
+    }
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type="text/plain")
+
+# 소켓연결 및 stt_worker에게 데이터 전달
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    redis = redis_from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+    redis = await redis_from_url(redis_url)
     try:
         await redis.ping()
     except Exception:
@@ -57,6 +76,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                 except Exception as e:
                     print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
+
                 user_state["buffer"] = bytearray()
                 user_state["start_time"] = None
 
@@ -65,40 +85,54 @@ async def websocket_endpoint(websocket: WebSocket):
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
-# 서버 재시작 시 Pub/Sub 충돌 방지용 polling 방식 적용
+# redis한테서 anyalyzer_worker한테 결과 받은거 출력 및 통계
 async def redis_subscriber():
-    redis = redis_from_url(
-        f"redis://{REDIS_HOST}:{REDIS_PORT}/0",
-        encoding="utf-8",
-        decode_responses=True
-    )
+    global positive_count, negative_count
+    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
     pubsub = redis.pubsub()
-    await pubsub.subscribe("final_stats", "result_messages")
-    print("[FastAPI] Subscribed to final_stats & result_messages")
+    await pubsub.subscribe("result_channel")
+    print("[FastAPI] ✅ Subscribed to result_channel")
 
+# 폴링 방식으로 받기
     while True:
         message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.1)
-        if message and message["type"] == "message":
+        if message and message.get("type") == "message":
             data = message["data"]
+            print(f"[FastAPI] 📩 메시지 수신: {data}")
+
             for user in list(connected_users):
                 try:
                     await user.send_text(data)
                 except Exception:
                     connected_users.pop(user, None)
+
+            if "긍정" in data:
+                positive_count += 1
+            elif "부정" in data:
+                negative_count += 1
+
+            total = positive_count + negative_count
+            if total:
+                pos_percent = (positive_count / total) * 100
+                neg_percent = (negative_count / total) * 100
+            else:
+                pos_percent = neg_percent = 0
+
+            stats = f"Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
+            print(f"[FastAPI] 📊 {stats}")
+
+            for user in list(connected_users):
+                try:
+                    await user.send_text(stats)
+                except Exception:
+                    connected_users.pop(user, None)
+
         await asyncio.sleep(0.1)
 
+#
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(redis_subscriber())  # 서버 재시작 시 Pub/Sub 충돌 방지 수정 완료
-
-@app.get("/ping")
-async def ping(request: Request):
-    start = time.perf_counter()
-    redis = redis_from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}/0", encoding="utf-8", decode_responses=True)
-    await redis.ping()
-    duration = time.perf_counter() - start
-    return {"latency_ms": round(duration * 1000, 2)}
-
+    asyncio.create_task(redis_subscriber())
 
 
 html = """
