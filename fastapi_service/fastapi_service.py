@@ -53,7 +53,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
-        TIMEOUT_SECONDS = 1
+        TIMEOUT_SECONDS = 0.5
         while True:
             audio_chunk = await websocket.receive_bytes()
             user_state = connected_users.get(websocket)
@@ -103,7 +103,8 @@ async def redis_subscriber():
             for user in list(connected_users):
                 try:
                     await user.send_text(data)
-                except Exception:
+                except Exception as e:
+                    print(f"❌ WebSocket 전송 실패: {e}")
                     connected_users.pop(user, None)
 
             if "긍정" in data:
@@ -138,47 +139,47 @@ async def startup_event():
 html = """
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Realtime STT & Emotion Monitor</title>
-        <style>
-            body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
-            #header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #333; color: white; font-size: 1.2em; flex-wrap: wrap; }
-            #title { flex: 1; text-align: left; }
-            #startButton {
-                min-width: 120px;
-                margin: 0 auto;
-                display: block;
-                padding: 8px 16px;
-                font-size: 1em;
-                cursor: pointer;
-            }
-            #people { flex: 1; text-align: right; }
-            #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
-            #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
-            button { padding: 8px 16px; font-size: 1em; cursor: pointer; }
-        </style>
-    </head>
-    <body>
-        <div id="header">
-            <div id="title">🎙️ 실시간 감정 분석</div>
-            <button id="startButton">🎙️ Start</button>
-            <div id="people">연결 인원:0</div>
-        </div>
-        <div id="log"></div>
-        <div id="stats">👍0회 0%|0% 0회👎</div>
+<head>
+    <title>Realtime STT & Emotion Monitor</title>
+    <style>
+        body { font-family: Arial; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        #header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #333; color: white; font-size: 1.2em; flex-wrap: wrap; }
+        #title { flex: 1; text-align: left; }
+        #startButton {
+            min-width: 120px;
+            margin: 0 auto;
+            display: block;
+            padding: 8px 16px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        #people { flex: 1; text-align: right; }
+        #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
+        #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
+        button { padding: 8px 16px; font-size: 1em; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div id="title">🎙️ 실시간 감정 분석</div>
+        <button id="startButton">🎙️ Start</button>
+        <div id="people">연결 인원:0</div>
+    </div>
+    <div id="log"></div>
+    <div id="stats">👍0회 0%|0% 0회👎</div>
 
-        <script>
-            let ws = null;
-            let log = document.getElementById("log");
-            let stats = document.getElementById("stats");
-            let people = document.getElementById("people");
+    <script>
+        let ws = null;
+        let ctx = null;
+        let stream = null;
+        let audioBuffer = [];  // ✅ 0.5초 버퍼링용
+        let lastSendTime = performance.now();
 
-            document.getElementById("startButton").onclick = async function() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                console.warn("이미 WebSocket 연결 중입니다.");
-                return;
-                }
-                ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+        const log = document.getElementById("log");
+        const stats = document.getElementById("stats");
+        const people = document.getElementById("people");
+        const button = document.getElementById("startButton");
+        
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
             const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
@@ -186,12 +187,14 @@ html = """
             return `${protocol}${loc.hostname}${port}${path}`;
         }
 
+        button.onclick = async function () {
+            if (button.textContent.includes("Start")) {
                 ws = new WebSocket(resolveWebSocketURL("/ws"));
                 ws.onopen = () => console.log("✅ WebSocket 연결 성공");
                 ws.onclose = () => console.log("❌ WebSocket 연결 종료");
 
-                ws.onmessage = function(event) {
-                    var data = event.data;
+                ws.onmessage = function (event) {
+                    const data = event.data;
                     if (data.startsWith("PEOPLE:")) {
                         people.textContent = "연결 인원:" + data.replace("PEOPLE:", "");
                         return;
@@ -200,14 +203,14 @@ html = """
                         stats.textContent = data.replace("✅ Listener 통계 → ", "");
                         return;
                     }
-                    var div = document.createElement("div");
+                    const div = document.createElement("div");
                     div.textContent = data;
                     log.appendChild(div);
                     log.scrollTop = log.scrollHeight;
                 };
 
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
+                    stream = await navigator.mediaDevices.getUserMedia({
                         audio: {
                             sampleRate: 16000,               // 🎯 Whisper용 16kHz
                             channelCount: 1,                 // 🎯 mono 고정
@@ -217,7 +220,7 @@ html = """
                     });
                     console.log("🎧 getUserMedia 성공");
 
-                    const ctx = new AudioContext({ sampleRate: 16000 });  // 🎯 downstream 16kHz 고정
+                    ctx = new AudioContext({ sampleRate: 16000 });
                     const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
                     const blobURL = URL.createObjectURL(blob);
                     await ctx.audioWorklet.addModule(blobURL);
@@ -225,19 +228,48 @@ html = """
                     const src = ctx.createMediaStreamSource(stream);
                     const worklet = new AudioWorkletNode(ctx, 'audio-processor');
 
+                    // ✅ 0.5초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
-                        console.log("🎙️ Audio chunk 전달:", e.data.byteLength, "bytes");
-                        if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                        const now = performance.now();
+                        const chunk = new Int16Array(e.data);
+                        audioBuffer.push(...chunk);
+
+                        if (now - lastSendTime >= 500) {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                const final = new Int16Array(audioBuffer);
+                                ws.send(final.buffer);
+                                audioBuffer = [];
+                                lastSendTime = now;
+                            }
+                        }
                     };
 
                     src.connect(worklet).connect(ctx.destination);
+                    button.textContent = "⏹️ Stop";
                 } catch (error) {
                     console.error("❌ Audio 처리 중 오류 발생:", error);
                 }
-            };
-        </script>
+            } else {
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+                if (ctx) {
+                    ctx.close();
+                    ctx = null;
+                }
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                    stream = null;
+                }
+                audioBuffer = [];  // ✅ 잔여 데이터 정리
+                button.textContent = "🎙️ Start";
+                console.log("🛑 마이크/연결 종료");
+            }
+        };
+    </script>
 
-        <script type="worklet">
+    <script type="worklet">
         class AudioProcessor extends AudioWorkletProcessor {
             constructor() {
                 super();
