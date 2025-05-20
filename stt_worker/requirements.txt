@@ -5,5 +5,5 @@ redis==5.0.4
 fastapi==0.115.2
 uvicorn[standard]==0.29.0
 torch==2.2.2+cpu
-openai_whisper==20240930
+openai-whisper==20240930
 -f https://download.pytorch.org/whl/torch_stable.html
