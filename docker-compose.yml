@@ -26,17 +26,6 @@ services:
       - redis
     restart: always
 
-  listener_service:
-    build:
-      context: ./listener_service
-    command: python3 listener_service.py
-    environment:
-      - REDIS_HOST=redis
-      - DOCKER=1
-    depends_on:
-      - redis
-    restart: always
-
   fastapi_service:
     build:
       context: ./fastapi_service
@@ -54,17 +43,9 @@ services:
 
 # ==========================
 # ✅ 설명
-# - stt_worker 단일 서비스 정의
 # - 배포 시 컨테이너 개수 조절 (--scale)
-# - 윈도우용 pool=solo 제거 → 리눅스 최적화 완성
-# 윈도우용 --concurrency=1 --pool=solo
+# - 윈도우용 --concurrency=1 --pool=solo
+# - wsl2 기반 우분투 조차 --poll=sole 안하면 버그 발생
 
-#  recorder_service:
-#    build:
-#      context: ./recorder_service
-#    command: python3 recorder_service.py
-#    environment:
-#      - REDIS_HOST=redis
-#      - DOCKER=1
-#    depends_on:
-#      - redis
+#  recorder_service는 더 이상 로컬 테스트에 필요하지않아서 삭제
+#  listener_service는 쿠버네티스 연습하면서 삭제
