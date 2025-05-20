@@ -193,7 +193,7 @@ html = """
         let ws = null;
         let ctx = null;
         let stream = null;
-        let audioBuffer = [];  // ✅ 0.5초 버퍼링용
+        let audioBuffer = [];  // ✅ 버퍼링용
         let lastSendTime = performance.now();
 
         const log = document.getElementById("log");
@@ -250,13 +250,13 @@ html = """
                     const src = ctx.createMediaStreamSource(stream);
                     const worklet = new AudioWorkletNode(ctx, 'audio-processor');
 
-                    // ✅ 0.5초 단위로 audio chunk 전송
+                    // ✅ 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
                         const now = performance.now();
                         const chunk = new Int16Array(e.data);
                         audioBuffer.push(...chunk);
 
-                        if (now - lastSendTime >= 500) {
+                        if (now - lastSendTime >= 1000) { # 시간차이만큼 
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
