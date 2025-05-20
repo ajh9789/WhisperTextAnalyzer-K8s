@@ -33,7 +33,12 @@ def transcribe_audio(audio_bytes):
     text = result.get("text", "").strip()
     print(f"[STT] 🎙️ Whisper STT 결과: {text}")
 
-    # ✅ 3. analyzer_worker 호출
+    # ✅ 3. 공백 내용이면 생략
+    if not text:
+        print("[STT] ⚠️ 공백 텍스트 감지 → 분석 생략")
+        return "[STT] ⚠️ 생략됨"
+
+    # ✅ 4. analyzer_worker 호출
     celery.send_task(
         "analyzer_worker.analyzer_text",
         args=[text],
