@@ -147,7 +147,6 @@ async def redis_subscriber():
 
 
 html = """
-<!DOCTYPE html>
 <html>
 <head>
     <title>Realtime STT & Emotion Monitor</title>
@@ -165,8 +164,56 @@ html = """
         }
         #people { flex: 1; text-align: right; }
         #log { flex: 1; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
-        #stats { padding: 10px; background: #f2f2f2; position: sticky; bottom: 0; display: flex; justify-content: center; font-size: 1.2em; }
+
+        #statsRow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: #f2f2f2;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        #leftInfo {
+            white-space: nowrap;
+        }
+
+        #centerStat {
+            flex: 1;
+            text-align: center;
+            min-width: 160px;
+        }
+
+        #rightControl {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        #thresholdSlider {
+            width: 140px;
+        }
+
         button { padding: 8px 16px; font-size: 1em; cursor: pointer; }
+
+        @media (max-width: 480px) {
+            #statsRow {
+                flex-wrap: nowrap;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            #rightControl {
+                justify-content: center;
+                margin-top: 6px;
+            }
+
+            #thresholdSlider {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -176,20 +223,42 @@ html = """
         <div id="people">연결 인원:0</div>
     </div>
     <div id="log"></div>
-    <div id="stats">👍0회 0%|0% 0회👎</div>
+
+    <div id="statsRow"> // 소음과 슬라이드로 감도 조절기능 추가
+        <div id="leftInfo">🔈 소음: <span id="currentEnergy">0</span></div>
+        <div id="centerStat">👍0회 0%|0% 0회👎</div>
+        <div id="rightControl">
+            🎚️ <span>감도:</span>
+            <input id="thresholdSlider" type="range" min="0" max="14" value="9">
+        </div>
+    </div>
 
     <script>
         let ws = null;
         let ctx = null;
         let stream = null;
-        let audioBuffer = [];  // 버퍼링용
+        let audioBuffer = [];
         let lastSendTime = performance.now();
 
         const log = document.getElementById("log");
-        const stats = document.getElementById("stats");
+        const stats = document.getElementById("centerStat");
         const people = document.getElementById("people");
         const button = document.getElementById("startButton");
         const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
+        const thresholds = [
+            0.0001, 0.0002, 0.0003, 0.0004, 0.0005,
+            0.0006, 0.0007, 0.0008, 0.0009, 0.0010,
+            0.0011, 0.0012, 0.0013, 0.0014, 0.0015
+        ];
+
+        const slider = document.getElementById("thresholdSlider"); //감도 조절값
+        const energyDisplay = document.getElementById("currentEnergy"); //감도 표시
+
+        slider.oninput = () => { // 슬라이더 입력 이벤트 발생 시 실행되는 콜백 함수 등록
+            const val = thresholds[slider.value]; //현재 슬라이더 값을 Threshold으로 가져옴
+            worklet?.port.postMessage({ type: "threshold", value: val });
+        }; //타입을 지정해서 객체형태로 보냄
 
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
@@ -242,11 +311,15 @@ html = """
                     });
                     // 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
+                        if (e.data?.type === "energy") { // 메시지를 받았을 때
+                            energyDisplay.textContent = Math.round(e.data.value * 10000);
+                        } // 그 메시지 객체의 type이 "energy"인 경우 실행되서 표기 
+
                         const now = performance.now();
                         const chunk = new Int16Array(e.data);
                         audioBuffer.push(...chunk);
 
-                        if (now - lastSendTime >= 1000) { // 시간차이만큼 
+                        if (now - lastSendTime >= 1000) {
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
@@ -265,7 +338,6 @@ html = """
                 if (audioBuffer.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
                     const final = new Int16Array(audioBuffer);
                     ws.send(final.buffer);
-                    console.log("🧹 남은 오디오 버퍼 전송 후 종료");
                 }
                 if (ws) {
                     ws.close();
@@ -279,7 +351,7 @@ html = """
                     stream.getTracks().forEach(t => t.stop());
                     stream = null;
                 }
-                audioBuffer = [];  // 잔여 데이터 정리
+                audioBuffer = [];
                 button.textContent = "🎙️ Start";
                 console.log("🛑 마이크/연결 종료");
             }
@@ -289,40 +361,43 @@ html = """
     <script type="worklet">
         class AudioProcessor extends AudioWorkletProcessor {
             constructor(options) {
-                super();         // ?? : 널 병합 연산자 왼쪽이 null 또는 undefined일 경우에만 오른쪽 값 반환 단순한 ||와 달리 "", 0, false는 통과시킴
-                this.isMobile = options.processorOptions?.isMobile ?? false; //Optional chaining : processorOptions가 undefined이거나 null이면 undrend로 멈춤
-                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;    
+                super();
+                this.isMobile = options.processorOptions?.isMobile ?? false;
+                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
+                this.port.onmessage = (e) => { #객체타입이 맞을때 에너지값을 슬라이더값으로 받아옴
+                    if (e.data?.type === "threshold") {
+                        this.energyThreshold = e.data.value;
+                    }
+                };
             }
 
-            process(inputs, outputs, parameters) {
+            process(inputs) {
                 const input = inputs[0];
                 if (input.length > 0) {
                     const channelData = input[0];
 
-                    // VAD energy filter
                     let energy = 0;
                     for (let i = 0; i < channelData.length; i++) {
                         energy += Math.abs(channelData[i]);
                     }
                     energy /= channelData.length;
 
-                    if (energy < this.energyThreshold) return true;  // silence skip
+                    if (energy < this.energyThreshold) return true;
 
-                    // Float32 → Int16 변환
                     const int16Buffer = new Int16Array(channelData.length);
                     for (let i = 0; i < channelData.length; i++) {
                         let s = Math.max(-1, Math.min(1, channelData[i]));
                         int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
 
-                    // Int16Array → ArrayBuffer 전달
+                    this.port.postMessage({ type: "energy", value: energy }); #화면에 에너지값 표기
                     this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
                 }
                 return true;
             }
         }
         registerProcessor('audio-processor', AudioProcessor);
-        </script>
-    </body>
+    </script>
+</body>
 </html>
 """
