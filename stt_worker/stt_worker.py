@@ -34,7 +34,7 @@ def transcribe_audio(audio_bytes):
     # combined = np.concatenate(buffer[:8])  # 최대 4초까지만 자름
 
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
-        write(tmpfile.name, 16000, audio_bytes.astype(np.int16))
+        write(tmpfile.name, 16000, np.frombuffer(audio_bytes, dtype=np.int16).astype(np.int16))
         result = model.transcribe(tmpfile.name, language="ko", fp16=False)
 
     text = result.get("text", "").strip()
