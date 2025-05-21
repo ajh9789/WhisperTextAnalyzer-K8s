@@ -224,13 +224,13 @@ html = """
     </div>
     <div id="log"></div>
 
-    <div id="statsRow"> // 소음과 슬라이드로 감도 조절기능 추가
+    <div id="statsRow">                               <!-- 소음과 슬라이드로 감도 조절기능 추가 -->
         <div id="leftInfo">🔈 소음: <span id="currentEnergy">0</span></div>
         <div id="centerStat">👍0회 0%|0% 0회👎</div>
         <div id="rightControl">
             🎚️ <span>감도:</span>
             <input id="thresholdSlider" type="range" min="0" max="14" value="9">
-            <span id="sensitivityLabel">10</span> //슬라이더 뒤에 감도 표기
+            <span id="sensitivityLabel">10</span>        <!-- 슬라이더 뒤에 감도 표기 -->
         </div>
     </div>
 
@@ -238,6 +238,7 @@ html = """
         let ws = null;
         let ctx = null;
         let stream = null;
+        let worklet = null; 
         let audioBuffer = [];
         let lastSendTime = performance.now();
 
@@ -257,11 +258,12 @@ html = """
         const energyDisplay = document.getElementById("currentEnergy"); //소음 표시
         const sensitivityLabel = document.getElementById("sensitivityLabel");//슬라이더 수치표기
         
-        slider.oninput = () => { // 슬라이더 입력 이벤트 발생 시 실행되는 콜백 함수 등록
-            const val = thresholds[slider.value]; //현재 슬라이더 값을 감도를 가져옴
-            worklet?.port.postMessage({ type: "threshold", value: val }); // 그리고 worklet이 있다면 보낸다
-            sensitivityLabel.textContent = Number(slider.value) + 1; //슬라이더 수치 업데이트
-        }; //타입을 지정해서 객체형태로 보냄
+        // 슬라이더 입력 이벤트가 발생했을 때 실행
+        slider.oninput = () => {
+            const val = thresholds[slider.value]; // 슬라이더 값을 기준으로 감도 설정
+            worklet?.port.postMessage({ type: "threshold", value: val }); // worklet에 메시지 전송
+            sensitivityLabel.textContent = Number(slider.value) + 1; // 감도 수치를 텍스트에 반영
+        };
         
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
@@ -305,11 +307,14 @@ html = """
                     console.log("🎧 getUserMedia 성공");
 
                     ctx = new AudioContext({ sampleRate: 16000 });
-                    const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
+                    const blob = new Blob([
+                    document.querySelector('script[type="worklet"]').textContent
+                    ], { type: 'application/javascript' });
+                    
                     const blobURL = URL.createObjectURL(blob);
                     await ctx.audioWorklet.addModule(blobURL);
                     const src = ctx.createMediaStreamSource(stream);
-                    const worklet = new AudioWorkletNode(ctx, 'audio-processor', {
+                    worklet = new AudioWorkletNode(ctx, 'audio-processor', {
                         processorOptions: { isMobile }
                     });
                     const initialVal = thresholds[slider.value]; //초기 슬라이더값을 기기에 맞게 설정
