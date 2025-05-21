@@ -182,7 +182,7 @@ html = """
         let ws = null;
         let ctx = null;
         let stream = null;
-        let audioBuffer = [];  // ✅ 버퍼링용
+        let audioBuffer = [];  // 버퍼링용
         let lastSendTime = performance.now();
 
         const log = document.getElementById("log");
@@ -239,13 +239,13 @@ html = """
                     const src = ctx.createMediaStreamSource(stream);
                     const worklet = new AudioWorkletNode(ctx, 'audio-processor');
 
-                    // ✅ 초 단위로 audio chunk 전송
+                    // 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
                         const now = performance.now();
                         const chunk = new Int16Array(e.data);
                         audioBuffer.push(...chunk);
 
-                        if (now - lastSendTime >= 1000) { # 시간차이만큼 
+                        if (now - lastSendTime >= 1000) { // 시간차이만큼 
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
@@ -278,7 +278,7 @@ html = """
                     stream.getTracks().forEach(t => t.stop());
                     stream = null;
                 }
-                audioBuffer = [];  // ✅ 잔여 데이터 정리
+                audioBuffer = [];  // 잔여 데이터 정리
                 button.textContent = "🎙️ Start";
                 console.log("🛑 마이크/연결 종료");
             }
@@ -289,7 +289,7 @@ html = """
         class AudioProcessor extends AudioWorkletProcessor {
             constructor() {
                 super();
-                // ✅ 모바일과 PC 구분 후 에너지 기준치 설정
+                // 모바일과 PC 구분 후 에너지 기준치 설정
                 this.isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(globalThis.navigator.userAgent);
                 this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
             }
@@ -299,23 +299,23 @@ html = """
                 if (input.length > 0) {
                     const channelData = input[0];
 
-                    // ✅ VAD energy filter
+                    // VAD energy filter
                     let energy = 0;
                     for (let i = 0; i < channelData.length; i++) {
                         energy += Math.abs(channelData[i]);
                     }
                     energy /= channelData.length;
 
-                    if (energy < this.energyThreshold) return true;  // ✅ silence skip
+                    if (energy < this.energyThreshold) return true;  // silence skip
 
-                    // ✅ Float32 → Int16 변환
+                    // Float32 → Int16 변환
                     const int16Buffer = new Int16Array(channelData.length);
                     for (let i = 0; i < channelData.length; i++) {
                         let s = Math.max(-1, Math.min(1, channelData[i]));
                         int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
 
-                    // ✅ Int16Array → ArrayBuffer 전달
+                    // Int16Array → ArrayBuffer 전달
                     this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
                 }
                 return true;
