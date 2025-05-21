@@ -230,6 +230,7 @@ html = """
         <div id="rightControl">
             🎚️ <span>감도:</span>
             <input id="thresholdSlider" type="range" min="0" max="14" value="9">
+            <span id="sensitivityLabel">10</span> //슬라이더 뒤에 감도 표기
         </div>
     </div>
 
@@ -252,14 +253,16 @@ html = """
             0.0011, 0.0012, 0.0013, 0.0014, 0.0015
         ];
 
-        const slider = document.getElementById("thresholdSlider"); //감도 조절값
-        const energyDisplay = document.getElementById("currentEnergy"); //감도 표시
-
+        const slider = document.getElementById("thresholdSlider"); //슬라이더의 조절값 표기
+        const energyDisplay = document.getElementById("currentEnergy"); //소음 표시
+        const sensitivityLabel = document.getElementById("sensitivityLabel");//슬라이더 수치표기
+        
         slider.oninput = () => { // 슬라이더 입력 이벤트 발생 시 실행되는 콜백 함수 등록
-            const val = thresholds[slider.value]; //현재 슬라이더 값을 Threshold으로 가져옴
-            worklet?.port.postMessage({ type: "threshold", value: val });
+            const val = thresholds[slider.value]; //현재 슬라이더 값을 감도를 가져옴
+            worklet?.port.postMessage({ type: "threshold", value: val }); // 그리고 worklet이 있다면 보낸다
+            sensitivityLabel.textContent = Number(slider.value) + 1; //슬라이더 수치 업데이트
         }; //타입을 지정해서 객체형태로 보냄
-
+        
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
             const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
@@ -309,6 +312,12 @@ html = """
                     const worklet = new AudioWorkletNode(ctx, 'audio-processor', {
                         processorOptions: { isMobile }
                     });
+                    const initialVal = thresholds[slider.value]; //초기 슬라이더값을 기기에 맞게 설정
+                    worklet?.port.postMessage({ type: "threshold", value: initialVal });
+                    sensitivityLabel.textContent = Number(slider.value) + 1; //초기 슬라이더 기기값에 맞게 표시
+
+
+                    
                     // 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
                         if (e.data?.type === "energy") { // 메시지를 받았을 때
@@ -319,7 +328,7 @@ html = """
                         const chunk = new Int16Array(e.data);
                         audioBuffer.push(...chunk);
 
-                        if (now - lastSendTime >= 1000) {
+                        if (now - lastSendTime >= 1000) {   // 1초 단위로 녹음
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
@@ -364,7 +373,7 @@ html = """
                 super();
                 this.isMobile = options.processorOptions?.isMobile ?? false;
                 this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
-                this.port.onmessage = (e) => { #객체타입이 맞을때 에너지값을 슬라이더값으로 받아옴
+                this.port.onmessage = (e) => { // 객체타입이 맞을때 에너지값을 슬라이더값으로 받아옴
                     if (e.data?.type === "threshold") {
                         this.energyThreshold = e.data.value;
                     }
@@ -390,7 +399,7 @@ html = """
                         int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
 
-                    this.port.postMessage({ type: "energy", value: energy }); #화면에 에너지값 표기
+                    this.port.postMessage({ type: "energy", value: energy }); // 화면에 에너지값 표기
                     this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
                 }
                 return true;
