@@ -189,7 +189,8 @@ html = """
         const stats = document.getElementById("stats");
         const people = document.getElementById("people");
         const button = document.getElementById("startButton");
-        
+        const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
             const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
@@ -235,10 +236,10 @@ html = """
                     const blob = new Blob([document.querySelector('script[type="worklet"]').textContent], { type: 'application/javascript' });
                     const blobURL = URL.createObjectURL(blob);
                     await ctx.audioWorklet.addModule(blobURL);
-
                     const src = ctx.createMediaStreamSource(stream);
-                    const worklet = new AudioWorkletNode(ctx, 'audio-processor');
-
+                    const worklet = new AudioWorkletNode(ctx, 'audio-processor', {
+                        processorOptions: { isMobile }
+                    });
                     // 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
                         const now = performance.now();
@@ -287,11 +288,10 @@ html = """
 
     <script type="worklet">
         class AudioProcessor extends AudioWorkletProcessor {
-            constructor() {
-                super();
-                // 모바일과 PC 구분 후 에너지 기준치 설정
-                this.isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(globalThis.navigator.userAgent);
-                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
+            constructor(options) {
+                super();         // ?? : 널 병합 연산자 왼쪽이 null 또는 undefined일 경우에만 오른쪽 값 반환 단순한 ||와 달리 "", 0, false는 통과시킴
+                this.isMobile = options.processorOptions?.isMobile ?? false; //Optional chaining : processorOptions가 undefined이거나 null이면 undrend로 멈춤
+                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;    
             }
 
             process(inputs, outputs, parameters) {
