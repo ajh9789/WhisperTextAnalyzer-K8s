@@ -1,5 +1,6 @@
 import os
 import asyncio
+from contextlib import asynccontextmanager  # ✅ lifespan 구현용
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from prometheus_client import Counter, generate_latest
@@ -19,13 +20,34 @@ positive_count = 0
 negative_count = 0
 http_requests = Counter("http_requests_total", "Total HTTP Requests")
 
+# Redis pubsub 전역 선언
+pubsub = None
+
+# FastAPI lifespan 함수 정의: 서버 시작/종료 타이밍에 실행되는 코드 정의
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global pubsub
+    # 서버 시작 시: Redis 연결 및 pubsub 구독 설정
+    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
+    pubsub = redis.pubsub()
+    await pubsub.subscribe("result_channel")
+    asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
+    yield
+    # 서버 종료 시: 구독 해제 및 리소스 정리
+    await pubsub.unsubscribe("result_channel")
+    await pubsub.close()
+    print("[FastAPI] 🔒 Redis pubsub 정리 완료")
+
+# lifespan 적용된 FastAPI 인스턴스 생성
+app = FastAPI(lifespan=lifespan)
+
+# 루트 엔드포인트 - 상태 확인용 HTML 응답
 @app.get("/")
 async def get():
     http_requests.inc()
     return HTMLResponse(html)
 
-# api 만들기
-# 부정 긍정 통계 카운트 반환
+# 감정 분석 통계 API
 @app.get("/status")
 def status():
     return {
@@ -33,14 +55,15 @@ def status():
         "negative": negative_count
     }
 
+# Prometheus 메트릭 엔드포인트
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type="text/plain")
 
-# 소켓연결 및 stt_worker에게 데이터 전달
+# WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    # ✅ Redis 연결
+    # Redis 연결 테스트
     redis = await redis_from_url(redis_url)
     try:
         await redis.ping()
@@ -49,16 +72,15 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close()
         return
 
-    # ✅ WebSocket 연결 수락 및 유저 목록 등록
+    # 클라이언트 WebSocket 연결 수락 및 등록
     await websocket.accept()
     connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
 
-    # ✅ 전체 유저 수 broadcast
+    # 현재 연결 인원 브로드캐스트
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
     try:
-        # ✅ 실시간 오디오 수신 및 STT로 바로 전송 (버퍼 없이 처리)
         while True:
             audio_chunk = await websocket.receive_bytes()
             print(f"[FastAPI] 🎧 청크 수신: {len(audio_chunk)} bytes")
@@ -100,7 +122,7 @@ async def websocket_endpoint(websocket: WebSocket):
         #         user_state["start_time"] = None
 
     except WebSocketDisconnect:
-        # ✅ 연결 종료 시 유저 목록에서 제거 및 사람 수 갱신
+        # 연결 해제 시 유저 목록 정리 및 브로드캐스트 갱신
         connected_users.pop(websocket, None)
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
