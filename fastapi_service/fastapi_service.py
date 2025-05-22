@@ -324,7 +324,7 @@ html = """
                     log.scrollTop = log.scrollHeight;
                 };
 
-                try { /
+                try {
                     stream = await navigator.mediaDevices.getUserMedia({
                         audio: {                             //오디오 자체 설정
                             sampleRate: 16000,               // Whisper용 16kHz
