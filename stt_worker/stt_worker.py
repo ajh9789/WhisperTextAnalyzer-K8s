@@ -5,6 +5,7 @@ from scipy.io.wavfile import write
 import whisper as openai_whisper
 from celery import Celery
 import tempfile
+from collections import deque
 
 # ✅ 기본 설정
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")
@@ -16,8 +17,8 @@ model_path = os.getenv("MODEL_PATH", "/app/models")
 os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
-# ✅ 메모리 내 4초 누적 버퍼 (단일 사용자 전용)
-buffer = []
+# ✅ 메모리 내 4초 누적 버퍼 (deque로 변경)
+buffer = deque()
 
 
 # ✅ 반복 텍스트 필터 함수
@@ -36,8 +37,6 @@ def is_repetitive(text: str) -> bool:
 
 @celery.task(name="stt_worker.transcribe_audio", queue="stt_queue")
 def transcribe_audio(audio_bytes):
-    global buffer
-
     print("[STT] 🎧 오디오 청크 수신")
     buffer.append(np.frombuffer(audio_bytes, dtype=np.int16))
 
@@ -45,8 +44,9 @@ def transcribe_audio(audio_bytes):
         print(f"[STT] ⏳ 누적 {len(buffer)}/8...")
         return
 
-    combined = np.concatenate(buffer[:8])
-    buffer.clear()  #
+    # ✅ 앞에서 8개만 pop하여 분석
+    chunk = [buffer.popleft() for _ in range(8)]
+    combined = np.concatenate(chunk)
 
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
         write(tmpfile.name, 16000, combined.astype(np.int16))
@@ -56,12 +56,10 @@ def transcribe_audio(audio_bytes):
 
             if not text:
                 print("[STT] ⚠️ 공백 텍스트 → 분석 생략")
-                buffer.clear()
                 return
 
             if is_repetitive(text):
                 print(f"[STT] ⚠️ 반복 텍스트 감지 → 분석 생략: {text}")
-                buffer.clear()
                 return
 
             print(f"[STT] 🎙️ Whisper STT 결과: {text}")
