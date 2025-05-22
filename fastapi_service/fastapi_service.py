@@ -326,7 +326,7 @@ html = """
                     // 초 단위로 audio chunk 전송
                     worklet.port.onmessage = (e) => {
                         if (e.data?.type === "energy") { // 메시지를 받았을 때
-                            energyDisplay.textContent = Math.round(e.data.value * 10000);
+                            energyDisplay.textContent = (e.data.value * 1000).toFixed(1);
                         } // 그 메시지 객체의 type이 "energy"인 경우 실행되서 표기 
 
                         const now = performance.now();
