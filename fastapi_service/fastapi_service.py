@@ -132,7 +132,7 @@ async def redis_subscriber():
             else:
                 pos_percent = neg_percent = 0
 
-            stats = f"Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
+            stats = f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
             print(f"[FastAPI] 📊 {stats}")
 
             for user in list(connected_users):
@@ -337,7 +337,7 @@ html = """
                         audioBuffer.push(...chunk); //전개 연산자(Spread operator) chunk가 128프레임 배열이라 각 원소를 하나씩 푸쉬
                             }
 
-                        if (now - lastSendTime >= 3000) {   // 초 단위로 녹음
+                        if (now - lastSendTime >= 2000) {   // 초 단위로 녹음
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
