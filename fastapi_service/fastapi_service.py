@@ -64,7 +64,7 @@ def metrics():
 # WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    # Redis 연결 테스트
+    # Redis 연결 확인
     redis = await redis_from_url(redis_url)
     try:
         await redis.ping()
@@ -73,27 +73,55 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close()
         return
 
-    # 클라이언트 WebSocket 연결 수락 및 등록
+    # WebSocket 연결 수락 및 사용자 등록
     await websocket.accept()
     connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
 
-    # 현재 연결 인원 브로드캐스트
+    # 전체 인원 브로드캐스트
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+    TIMEOUT_SECONDS = 2  # 또는 4, 원하는 분석 주기
 
     try:
         while True:
             audio_chunk = await websocket.receive_bytes()
-            print(f"[FastAPI] 🎧 청크 수신: {len(audio_chunk)} bytes")
-            try:
-                celery.send_task(
-                    "stt_worker.transcribe_audio", args=[audio_chunk], queue="stt_queue"
+            user_state = connected_users.get(websocket)
+            if not user_state:
+                break
+
+            buffer = user_state["buffer"]
+            start_time = user_state["start_time"]
+
+            if not start_time:
+                user_state["start_time"] = asyncio.get_event_loop().time()
+
+            buffer.extend(audio_chunk)
+
+            if (
+                asyncio.get_event_loop().time() - user_state["start_time"]
+                >= TIMEOUT_SECONDS
+            ):
+                print(
+                    f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}"
                 )
-            except Exception as e:
-                print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
+
+                try:
+                    celery.send_task(
+                        "stt_worker.transcribe_audio",
+                        args=[bytes(buffer)],
+                        queue="stt_queue",
+                    )
+                except Exception as e:
+                    print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
+
+                # 버퍼 및 타이머 초기화
+                connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
+
     except WebSocketDisconnect:
-        # 연결 해제 시 유저 목록 정리 및 브로드캐스트 갱신
-        connected_users.pop(websocket, None)
+        connected_users.pop(
+            websocket, None
+        )  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
@@ -296,9 +324,9 @@ html = """
                     log.scrollTop = log.scrollHeight;
                 };
 
-                try {
+                try { /
                     stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
+                        audio: {                             //오디오 자체 설정
                             sampleRate: 16000,               // Whisper용 16kHz
                             channelCount: 1,                 // mono 고정
                             noiseSuppression: true,          // 배경 잡음 제거
@@ -306,15 +334,15 @@ html = """
                         }
                     });
                     console.log("🎧 getUserMedia 성공");
-
+                    // AudioContext로 16khz 저장소 만듬
                     ctx = new AudioContext({ sampleRate: 16000 });
                     const blob = new Blob([
-                        document.querySelector('script[type="worklet"]').textContent
+                        document.querySelector('script[type="worklet"]').textContent //worklet을 파이선 import 마냥 불러오기
                     ], { type: 'application/javascript' });
 
                     const blobURL = URL.createObjectURL(blob);
-                    await ctx.audioWorklet.addModule(blobURL);
-                    const src = ctx.createMediaStreamSource(stream);
+                    await ctx.audioWorklet.addModule(blobURL); // ctx에 audioWorklet 모듈저장 
+                    const src = ctx.createMediaStreamSource(stream); // src에 저장
                     worklet = new AudioWorkletNode(ctx, 'audio-processor', {
                         processorOptions: { isMobile }
                     });
@@ -398,9 +426,9 @@ html = """
                     for (let i = 0; i < channelData.length; i++) {
                         energy += Math.abs(channelData[i]);
                     }
-                    energy /= channelData.length;
+                    energy /= channelData.length; //에너지값 생성
                     this.port.postMessage({ type: "energy", value: energy }); // 화면에 에너지값 표기
-                    if (energy < this.energyThreshold) return true;
+                    if (energy < this.energyThreshold) return true; //무음이면 패스
                     
                     const int16Buffer = new Int16Array(channelData.length); // 오디오는 기본적으로Float32Array형으로 던져줌
                     for (let i = 0; i < channelData.length; i++) {          //클리핑(clipping) 오디오 데이터는 이론상 -1.0 ~ 1.0
