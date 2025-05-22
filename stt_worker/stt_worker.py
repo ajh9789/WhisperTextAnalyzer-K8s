@@ -20,13 +20,13 @@ model = openai_whisper.load_model(model_size, download_root=model_path)
 # ✅ 반복 텍스트 필터 함수
 def is_repetitive(text: str) -> bool:
     # 공백 제거 후 문자 반복 (예: 아아아아아아)
-    if re.fullmatch(r"(.)\1{5,}", text.replace(" ", "")):
+    if re.fullmatch(r"(.)\1{4,}", text.replace(" ", "")):
         return True
     # 단어 반복 (예: 좋아요 좋아요 좋아요 ...)
-    if re.search(r"\b(\w+)\b(?: \1){5,}", text):
+    if re.search(r"\b(\w+)\b(?: \1){4,}", text):
         return True
     # 음절 반복 (예: 아 아 아 아 아 ...)
-    if re.fullmatch(r"(.)\s*(?:\1\s*){5,}", text):
+    if re.fullmatch(r"(.)\s*(?:\1\s*){4,}", text):
         return True
     return False
 
