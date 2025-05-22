@@ -229,7 +229,7 @@ html = """
         <div id="centerStat">👍0회 0%|0% 0회👎</div>
         <div id="rightControl">
             🎚️ <span>감도:</span>
-            <input id="thresholdSlider" type="range" min="0" max="14" value="9">
+            <input id="thresholdSlider" type="range" min="0" max="30" value="10">
             <span id="sensitivityLabel">10</span>        <!-- 슬라이더 뒤에 감도 표기 -->
         </div>
     </div>
@@ -248,23 +248,24 @@ html = """
         const button = document.getElementById("startButton");
         const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
 
-        const thresholds = [
-            0.0001, 0.0002, 0.0003, 0.0004, 0.0005,
-            0.0006, 0.0007, 0.0008, 0.0009, 0.0010,
-            0.0011, 0.0012, 0.0013, 0.0014, 0.0015
-        ];
+        // 슬라이더와 관련된 DOM 요소들 정의
+        const slider = document.getElementById("thresholdSlider");
+        const energyDisplay = document.getElementById("currentEnergy");
+        const sensitivityLabel = document.getElementById("sensitivityLabel");
 
-        const slider = document.getElementById("thresholdSlider"); //슬라이더의 조절값 표기
-        const energyDisplay = document.getElementById("currentEnergy"); //소음 표시
-        const sensitivityLabel = document.getElementById("sensitivityLabel");//슬라이더 수치표기
-        
-        // 슬라이더 입력 이벤트가 발생했을 때 실행
+        // threshold 설정 범위 정의 
+        const minThreshold = 0;
+        const thresholdStep = 0.001;
+        const maxIndex = 30;  // 슬라이더 max 속성
+
+        // 슬라이더 입력 이벤트: threshold 계산 및 Worklet 전송
         slider.oninput = () => {
-            const val = thresholds[slider.value]; // 슬라이더 값을 기준으로 감도 설정
-            worklet?.port.postMessage({ type: "threshold", value: val }); // worklet에 메시지 전송
-            sensitivityLabel.textContent = Number(slider.value) + 1; // 감도 수치를 텍스트에 반영
+            const index = parseInt(slider.value, 10);  // 슬라이더 값 정수로 변환
+            const threshold = minThreshold + index * thresholdStep;  // 계산식 적용
+            worklet?.port.postMessage({ type: "threshold", value: threshold });  // worklet에 threshold 값 전달
+            sensitivityLabel.textContent = (threshold * 1000).toFixed(1);  // 감도 수치를 정수로 표시
         };
-        
+
         function resolveWebSocketURL(path = "/ws") {
             const loc = window.location;
             const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
@@ -298,40 +299,43 @@ html = """
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({
                         audio: {
-                            sampleRate: 16000,               // 🎯 Whisper용 16kHz
-                            channelCount: 1,                 // 🎯 mono 고정
-                            noiseSuppression: true,          // 🎯 배경 잡음 제거
-                            echoCancellation: true           // 🎯 에코 제거
+                            sampleRate: 16000,               // Whisper용 16kHz
+                            channelCount: 1,                 // mono 고정
+                            noiseSuppression: true,          // 배경 잡음 제거
+                            echoCancellation: true           // 에코 제거
                         }
                     });
                     console.log("🎧 getUserMedia 성공");
 
                     ctx = new AudioContext({ sampleRate: 16000 });
                     const blob = new Blob([
-                    document.querySelector('script[type="worklet"]').textContent
+                        document.querySelector('script[type="worklet"]').textContent
                     ], { type: 'application/javascript' });
-                    
+
                     const blobURL = URL.createObjectURL(blob);
                     await ctx.audioWorklet.addModule(blobURL);
                     const src = ctx.createMediaStreamSource(stream);
                     worklet = new AudioWorkletNode(ctx, 'audio-processor', {
                         processorOptions: { isMobile }
                     });
-                    const initialVal = thresholds[slider.value]; //초기 슬라이더값을 기기에 맞게 설정
-                    worklet?.port.postMessage({ type: "threshold", value: initialVal });
-                    sensitivityLabel.textContent = Number(slider.value) + 1; //초기 슬라이더 기기값에 맞게 표시
 
+                    // 초기 threshold 설정 및 감도 수치 반영
+                    const initIndex = parseInt(slider.value, 10);  // 문자열 슬라이더 값을 정수로 변환
+                    const initialThreshold = minThreshold + initIndex * thresholdStep;
+                    worklet?.port.postMessage({ type: "threshold", value: initialThreshold });
+                    sensitivityLabel.textContent = (initialThreshold * 1000).toFixed(1);  // 정수형 감도 표기
 
-                    
-                    // 초 단위로 audio chunk 전송
+                    // 오디오 처리 및 energy 수신 처리
                     worklet.port.onmessage = (e) => {
-                        if (e.data?.type === "energy") { // 메시지를 받았을 때
-                            energyDisplay.textContent = (e.data.value * 1000).toFixed(1);
-                        } // 그 메시지 객체의 type이 "energy"인 경우 실행되서 표기 
+                        if (e.data?.type === "energy") {// 메시지를 받았을 때
+                            energyDisplay.textContent = (e.data.value * 1000).toFixed(1);  // 소음 에너지를 정수화해서 표시
+                        }// 그 메시지 객체의 type이 "energy"인 경우 실행되서 표기 
 
                         const now = performance.now();
+                        if (e.data?.type !== "energy") { // 버퍼 넣기전에 energy타입인지 확인
                         const chunk = new Int16Array(e.data);
-                        audioBuffer.push(...chunk);
+                        audioBuffer.push(...chunk); //전개 연산자(Spread operator) chunk가 128프레임 배열이라 각 원소를 하나씩 푸쉬
+                            }
 
                         if (now - lastSendTime >= 1000) {   // 1초 단위로 녹음
                             if (ws.readyState === WebSocket.OPEN) {
@@ -377,7 +381,7 @@ html = """
             constructor(options) {
                 super();
                 this.isMobile = options.processorOptions?.isMobile ?? false;
-                this.energyThreshold = this.isMobile ? 0.0001 : 0.001;
+                this.energyThreshold = this.isMobile ? 0.001 : 0.01;
                 this.port.onmessage = (e) => { // 객체타입이 맞을때 에너지값을 슬라이더값으로 받아옴
                     if (e.data?.type === "threshold") {
                         this.energyThreshold = e.data.value;
@@ -398,11 +402,11 @@ html = """
 
                     if (energy < this.energyThreshold) return true;
 
-                    const int16Buffer = new Int16Array(channelData.length);
-                    for (let i = 0; i < channelData.length; i++) {
-                        let s = Math.max(-1, Math.min(1, channelData[i]));
-                        int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                    }
+                    const int16Buffer = new Int16Array(channelData.length); // 오디오는 기본적으로Float32Array형으로 던져줌
+                    for (let i = 0; i < channelData.length; i++) {          //클리핑(clipping) 오디오 데이터는 이론상 -1.0 ~ 1.0
+                        let s = Math.max(-1, Math.min(1, channelData[i])); // 그래서 1보다 작은지 -1보다 큰지 체크
+                        int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; // Float32를 Int16로 변환 
+                    }                                                     //-1.0 → -32768 (0x8000), 1.0 → 32767 (0x7FFF)
 
                     this.port.postMessage({ type: "energy", value: energy }); // 화면에 에너지값 표기
                     this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
