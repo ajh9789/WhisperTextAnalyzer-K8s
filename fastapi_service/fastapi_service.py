@@ -337,7 +337,7 @@ html = """
                         audioBuffer.push(...chunk); //전개 연산자(Spread operator) chunk가 128프레임 배열이라 각 원소를 하나씩 푸쉬
                             }
 
-                        if (now - lastSendTime >= 4000) {   // 1초 단위로 녹음
+                        if (now - lastSendTime >= 3000) {   // 초 단위로 녹음
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);
