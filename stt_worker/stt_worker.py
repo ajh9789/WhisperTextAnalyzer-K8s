@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 from scipy.io.wavfile import write
 import whisper as openai_whisper
@@ -16,6 +17,20 @@ os.makedirs(model_path, exist_ok=True)
 model = openai_whisper.load_model(model_size, download_root=model_path)
 
 
+# ✅ 반복 텍스트 필터 함수
+def is_repetitive(text: str) -> bool:
+    # 공백 제거 후 문자 반복 (예: 아아아아아아)
+    if re.fullmatch(r"(.)\1{5,}", text.replace(" ", "")):
+        return True
+    # 단어 반복 (예: 좋아요 좋아요 좋아요 ...)
+    if re.search(r"\b(\w+)\b(?: \1){5,}", text):
+        return True
+    # 음절 반복 (예: 아 아 아 아 아 ...)
+    if re.fullmatch(r"(.)\s*(?:\1\s*){5,}", text):
+        return True
+    return False
+
+
 @celery.task(name="stt_worker.transcribe_audio", queue="stt_queue")
 def transcribe_audio(audio_bytes):
     print("[STT] 🎧 오디오 청크 수신")
@@ -28,10 +43,17 @@ def transcribe_audio(audio_bytes):
         try:
             result = model.transcribe(tmpfile.name, language="ko", fp16=False)
             text = result.get("text", "").strip()
+
             if not text:
                 print("[STT] ⚠️ 공백 텍스트 → 분석 생략")
                 return
+
+            if is_repetitive(text):
+                print(f"[STT] ⚠️ 반복 텍스트 감지 → 분석 생략: {text}")
+                return
+
             print(f"[STT] 🎙️ Whisper STT 결과: {text}")
+
         except Exception as e:
             print(f"[STT] ❌ Whisper 처리 실패: {e}")
             return
