@@ -399,16 +399,14 @@ html = """
                         energy += Math.abs(channelData[i]);
                     }
                     energy /= channelData.length;
-
+                    this.port.postMessage({ type: "energy", value: energy }); // 화면에 에너지값 표기
                     if (energy < this.energyThreshold) return true;
-
+                    
                     const int16Buffer = new Int16Array(channelData.length); // 오디오는 기본적으로Float32Array형으로 던져줌
                     for (let i = 0; i < channelData.length; i++) {          //클리핑(clipping) 오디오 데이터는 이론상 -1.0 ~ 1.0
                         let s = Math.max(-1, Math.min(1, channelData[i])); // 그래서 1보다 작은지 -1보다 큰지 체크
                         int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; // Float32를 Int16로 변환 
                     }                                                     //-1.0 → -32768 (0x8000), 1.0 → 32767 (0x7FFF)
-
-                    this.port.postMessage({ type: "energy", value: energy }); // 화면에 에너지값 표기
                     this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
                 }
                 return true;
