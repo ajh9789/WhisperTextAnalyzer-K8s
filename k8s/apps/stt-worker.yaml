@@ -16,22 +16,25 @@ spec:
         - name: stt-worker
           image: ajh9789/stt_worker:latest
           imagePullPolicy: Always
+          #커멘드
           command: [ "celery" ]
           args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue", "--concurrency=1","--pool=solo" ]
+          #환경설정
           envFrom:
             - configMapRef:
                 name: whisper-config
             - secretRef:
                 name: whisper-secret
-          volumeMounts:
-            - name: model-volume
-              mountPath: /app/models
           env:
             - name: REDIS_HOST
               value: redis
             - name: DOCKER
               value: "1"
-      volumes:
+          #볼륨 붙이는곳
+          volumeMounts:
+            - name: model-volume
+              mountPath: /app/models
+      volumes: #실제 볼륨
         - name: model-volume
           persistentVolumeClaim:
             claimName: pvc-models
