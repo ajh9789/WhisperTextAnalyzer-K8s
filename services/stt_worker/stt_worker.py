@@ -45,15 +45,14 @@ def is_repetitive(text: str) -> bool:
         return True
 
     # 4. 단어 빈도 기반 반복 검사:
-    # 문장에서 특정 단어가 전체 단어의 60% 이상, 5회 이상 등장할 경우 필터링
+    # 문장에서 특정 단어가 전체 단어의 30% 이상, 5회 이상 등장할 경우 필터
     words = re.findall(r"\b\w+\b", text)
     total = len(words)
     if total >= 5:
         freq = Counter(words)
         most_common, count = freq.most_common(1)[0]
-        if count / total > 0.6 and count >= 5:
+        if count / total > 0.2 and count >= 5:
             return True
-
     # 5. n-gram 반복 검사:
     # 2단어, 3단어씩 묶인 문장이 반복되는 경우 필터링
     # 예: "스튜디오에 도착한 스튜디오에 도착한 ..."
@@ -73,7 +72,7 @@ def is_ngram_repetitive(text: str, n=2) -> bool:
         return False
     freq = Counter(ngrams)  # n-gram 빈도 측정 (ex: '스튜디오에 도착한': 8회 등)
     most_common, count = freq.most_common(1)[0]  # 가장 많이 나온 n-gram 추출 most_common은 리스트형
-    if count >= 5 and count / len(ngrams) > 0.5:  # ({'스튜디오에 도착한': 3, '도착한 후': 1}) 같은 딕셔너리 형태의 튜플로 추출
+    if count >= 5 and count / len(ngrams) > 0.2:  # ({'스튜디오에 도착한': 3, '도착한 후': 1}) 같은 딕셔너리 형태의 튜플로 추출
         return True  # 전체 n-gram 중 특정 문장이 절반 이상 반복되며 5회 이상 등장하면 필터링
     return False
 
@@ -93,10 +92,6 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
             if is_repetitive(text):  # 반복 텍스트 필터링 적용
                 print(f"[STT] ⚠️ 반복 텍스트 감지 → 분석 생략: {text}")
                 return
-            if is_ngram_repetitive(text, n=2):  # n-gram 반복 검사: 2~3개의 단어로 구성된 구절이 반복되는 패턴 감지
-                return True
-            if is_ngram_repetitive(text, n=3):
-                return True
             print(f"[STT] 🎙️ Whisper STT 결과: {text}")
 
         except Exception as e:
