@@ -9,23 +9,18 @@ from collections import Counter
 
 # from collections import deque
 
-# ✅ 기본 설정
-REDIS_HOST = os.getenv(
-    "REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost"
-)  # Redis 주소 환경 변수로 설정 (도커 환경 고려)
-celery = Celery(
-    "stt_worker", broker=f"redis://{REDIS_HOST}:6379/0"
-)  # Celery 앱 인스턴스 생성 및 Redis 브로커 설정
+# 기본 설정
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")  # Redis 주소 환경 변수로 설정 (도커 환경 고려)
+celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:6379/0")  # Celery 앱 인스턴스 생성 및 Redis 브로커 설정
 
-# ✅ Whisper 모델 로드
+# Whisper 모델 로드
 model_size = os.getenv("MODEL_SIZE", "tiny")  # Whisper 모델 사이즈 설정 (tiny, base 등)
 model_path = os.getenv("MODEL_PATH", "/app/models")  # 모델 다운로드 저장 경로 지정
 os.makedirs(model_path, exist_ok=True)  # 모델 저장 경로가 없을 경우 생성
-model = openai_whisper.load_model(
-    model_size, download_root=model_path
-)  # Whisper 모델 로드 및 다운로드
+model = openai_whisper.load_model(model_size, download_root=model_path)  # Whisper 모델 로드 및 다운로드
 
-# # ✅ 메모리 내 4초 누적 버퍼 (deque로 변경) 웹서버에서 받는걸로 결정 다중이용자 고려하기 편함
+
+# 메모리 내 4초 누적 버퍼 (deque로 변경) 웹서버에서 받는걸로 결정 다중이용자 고려하기 편함
 # buffer = deque()
 
 
@@ -71,64 +66,34 @@ def is_repetitive(text: str) -> bool:
 
 # n-gram 각 문장을 n개씩 조개서 문장 단위로 체크하는 for문과 갯수체크하는 counter로 이뤄어진 O(n)와 nlogn정도
 def is_ngram_repetitive(text: str, n=2) -> bool:
-    """
-    n-gram 단위 반복 필터 함수
-    ex: "스튜디오에 도착한 스튜디오에 도착한" → 3단어 단위 n-gram 반복
-    """
-    words = text.split()  # 공백 기준 단어 분리
-
-    # n개의 단어를 묶어서 n-gram 리스트 구성
-    ngrams = [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
-
+    words = text.split()  # 공백 기준 단어 분리  # n-gram 단위 반복 필터 함수
+    # n개의 단어를 묶어서 n-gram 리스트 구성, #ex: "스튜디오에 도착한 스튜디오에 도착한" → 3단어 단위 n-gram 반복
+    ngrams = [" ".join(words[i: i + n]) for i in range(len(words) - n + 1)]
     if not ngrams:
         return False
-
-    # n-gram 빈도 측정 (ex: '스튜디오에 도착한': 8회 등)
-    freq = Counter(
-        ngrams
-    )  # ({'스튜디오에 도착한': 3, '도착한 후': 1}) 같은 딕셔너리 형태의 튜플로 추출
-    most_common, count = freq.most_common(1)[
-        0
-    ]  # 가장 많이 나온 n-gram 추출 most_common은 리스트형
-
-    # 전체 n-gram 중 특정 문장이 절반 이상 반복되며 5회 이상 등장하면 필터링
-    if count >= 5 and count / len(ngrams) > 0.5:
-        return True
-
+    freq = Counter(ngrams)  # n-gram 빈도 측정 (ex: '스튜디오에 도착한': 8회 등)
+    most_common, count = freq.most_common(1)[0]  # 가장 많이 나온 n-gram 추출 most_common은 리스트형
+    if count >= 5 and count / len(ngrams) > 0.5:  # ({'스튜디오에 도착한': 3, '도착한 후': 1}) 같은 딕셔너리 형태의 튜플로 추출
+        return True  # 전체 n-gram 중 특정 문장이 절반 이상 반복되며 5회 이상 등장하면 필터링
     return False
 
 
-@celery.task(
-    name="stt_worker.transcribe_audio", queue="stt_queue"
-)  # Celery 태스크 등록: STT 작업 함수
+@celery.task(name="stt_worker.transcribe_audio", queue="stt_queue")  # Celery 태스크 등록: STT 작업 함수
 def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
     print("[STT] 🎧 오디오 청크 수신")
-    audio_np = np.frombuffer(
-        audio_bytes, dtype=np.int16
-    )  # 'bytes' 데이터를 numpy int16 배열로 변환
-    with tempfile.NamedTemporaryFile(
-        suffix=".wav"
-    ) as tmpfile:  # 오디오 데이터를 임시 WAV 파일로 저장
-        write(
-            tmpfile.name, 16000, audio_np.astype(np.int16)
-        )  # numpy 배열을 16kHz wav로 저장
+    audio_np = np.frombuffer(audio_bytes, dtype=np.int16)  # 'bytes' 데이터를 numpy int16 배열로 변환
+    with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:  # 오디오 데이터를 임시 WAV 파일로 저장
+        write(tmpfile.name, 16000, audio_np.astype(np.int16))  # numpy 배열을 16kHz wav로 저장
         try:
-            result = model.transcribe(
-                tmpfile.name, language="ko", fp16=False
-            )  # Whisper 모델로 음성 인식 수행
-            text = result.get(
-                "text", ""
-            ).strip()  # 결과에서 앞뒤 텍스트 추출 및 공백 제거
-
+            result = model.transcribe(tmpfile.name, language="ko", fp16=False)  # Whisper 모델로 음성 인식 수행
+            text = result.get("text", "").strip()  # 결과에서 앞뒤 텍스트 추출 및 공백 제거
             if not text:  # 공백 결과일 경우 분석 생략
                 print("[STT] ⚠️ 공백 텍스트 → 분석 생략")
                 return
-
             if is_repetitive(text):  # 반복 텍스트 필터링 적용
                 print(f"[STT] ⚠️ 반복 텍스트 감지 → 분석 생략: {text}")
                 return
-            # n-gram 반복 검사: 2~3개의 단어로 구성된 구절이 반복되는 패턴 감지
-            if is_ngram_repetitive(text, n=2):
+            if is_ngram_repetitive(text, n=2):  # n-gram 반복 검사: 2~3개의 단어로 구성된 구절이 반복되는 패턴 감지
                 return True
             if is_ngram_repetitive(text, n=3):
                 return True
@@ -139,9 +104,7 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
             return
 
         try:
-            celery.send_task(  # 분석 결과를 analyzer_worker에게 전달
-                "analyzer_worker.analyzer_text", args=[text], queue="analyzer_queue"
-            )
-            print("[STT] ✅ analyzer_worker 호출 완료")
+            celery.send_task("analyzer_worker.analyzer_text", args=[text], queue="analyzer_queue")
+            print("[STT] ✅ analyzer_worker 호출 완료")  # 분석 결과를 analyzer_worker에게 전달
         except Exception as e:
             print(f"[STT] ❌ analyzer_worker 호출 실패: {e}")

@@ -29,9 +29,7 @@ pubsub = None
 async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비동기 함수 정의
     global pubsub
     # 서버 시작 시: Redis 연결 및 pubsub 구독 설정
-    redis = await redis_from_url(
-        redis_url, encoding="utf-8", decode_responses=True
-    )  # Redis 서버와 비동기 연결 설정
+    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)  # Redis 서버와 비동기 연결 설정
     pubsub = redis.pubsub()  # Redis Pub/Sub 인스턴스 생성
     await pubsub.subscribe("result_channel")  # Redis 채널 구독 시작
     asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
@@ -67,9 +65,7 @@ def metrics():
 
 # WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
 @app.websocket("/ws")  # WebSocket 연결 정의
-async def websocket_endpoint(
-    websocket: WebSocket,
-):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
+async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
     # Redis 연결 확인
     redis = await redis_from_url(redis_url)  # Redis 서버와 비동기 연결 설정
     try:
@@ -91,9 +87,7 @@ async def websocket_endpoint(
 
     try:
         while True:
-            audio_chunk = (
-                await websocket.receive_bytes()
-            )  # 클라이언트로부터 오디오 청크 수신
+            audio_chunk = (await websocket.receive_bytes())  # 클라이언트로부터 오디오 청크 수신
             user_state = connected_users.get(websocket)
             if not user_state:
                 break
@@ -107,33 +101,23 @@ async def websocket_endpoint(
             buffer.extend(audio_chunk)
 
             if (
-                asyncio.get_event_loop().time() - user_state["start_time"]
-                >= TIMEOUT_SECONDS
+                    asyncio.get_event_loop().time() - user_state["start_time"]
+                    >= TIMEOUT_SECONDS
             ):
                 print(
                     f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}"
                 )
 
                 try:
-                    celery.send_task(  # Celery를 통해 STT 작업 전송
-                        "stt_worker.transcribe_audio",
-                        args=[  # 브라우저에서 Int16Array로 전처리된 raw PCM 데이터를 그대로 수신
-                            bytes(
-                                buffer
-                            )  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
-                        ],
-                        queue="stt_queue",
-                    )
-                except Exception as e:
+                    celery.send_task(  # Celery를 통해 STT 작업 전송# 브라우저에서 Int16Array로 전처리된 raw PCM 데이터를 그대로 수신
+                        "stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue", )
+                except Exception as e:  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
                     print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
-
                 # 버퍼 및 타이머 초기화
                 connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
 
     except WebSocketDisconnect:  # WebSocket 연결 끊김 예외 처리
-        connected_users.pop(
-            websocket, None
-        )  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
+        connected_users.pop(websocket, None)  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
@@ -372,7 +356,7 @@ html = """
                         }// 그 메시지 객체의 type이 "energy"인 경우 실행되서 표기 
 
                         const now = performance.now();
-                        if (e.data?.type !== "energy") { // 버퍼 넣기전에 energy타입인지 확인
+                        if (e.data?.type !== "energy") { // 버퍼 넣기전에 energy 타입인지 확인
                         const chunk = new Int16Array(e.data);
                         audioBuffer.push(...chunk); //전개 연산자(Spread operator) chunk가 128프레임 배열이라 각 원소를 하나씩 푸쉬
                             }

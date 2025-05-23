@@ -23,12 +23,8 @@ def analyzer_text(text):  # 텍스트 감정 분석 및 Redis 전송 함수 정�
         print(f"[Analyzer] Sentiment analysis error: {e}")
         return
 
-    emotion = (
-        "긍정" if result["label"] == "POSITIVE" else "부정"
-    )  # 분류 결과를 바탕으로 긍정/부정 레이블 결정
-    icon = (
-        "👍" if result["label"] == "POSITIVE" else "👎"
-    )  # 이모지 아이콘 설정 (👍 또는 👎)
+    emotion = ("긍정" if result["label"] == "POSITIVE" else "부정")  # 분류 결과를 바탕으로 긍정/부정 레이블 결정
+    icon = ("👍" if result["label"] == "POSITIVE" else "👎")  # 이모지 아이콘 설정 (👍 또는 👎)
     score = result["score"]
 
     output = f"{icon} {emotion} [{score * 100:.0f}%] : {decoded_text}"  # 출력 문자열 구성 (예: 긍정/부정 + 점수 + 원문)
