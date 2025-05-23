@@ -12,14 +12,34 @@ spec:
       labels:
         app: fastapi-service   # ← 하이픈
     spec:
-      containers:
-        - name: fastapi-service
+      containers: # 네임은 리스트형식
+        - name: fastapi-service # pod안에 여러 컨테이너를 정의 가능하기때문
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 2
           image: ajh9789/fastapi_service:latest  # ← 이건 DockerHub이므로 언더스코어 OK
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
           command: [ "uvicorn" ]
           args: [ "fastapi_service:app", "--host", "0.0.0.0", "--port", "8000" ]
+          envFrom:
+            - configMapRef:
+                name: whisper-config
+            - secretRef:
+                name: whisper-secret
           env:
             - name: REDIS_HOST
               value: redis

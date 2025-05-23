@@ -18,8 +18,20 @@ spec:
           imagePullPolicy: Always
           command: [ "celery" ]
           args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue", "--concurrency=1","--pool=solo" ]
+          envFrom:
+            - configMapRef:
+                name: whisper-config
+            - secretRef:
+                name: whisper-secret
+          volumeMounts:
+            - name: model-volume
+              mountPath: /app/models
           env:
             - name: REDIS_HOST
               value: redis
             - name: DOCKER
               value: "1"
+      volumes:
+        - name: model-volume
+          persistentVolumeClaim:
+            claimName: pvc-models

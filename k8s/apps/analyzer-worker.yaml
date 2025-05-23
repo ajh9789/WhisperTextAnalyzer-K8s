@@ -16,8 +16,13 @@ spec:
         - name: analyzer-worker
           image: ajh9789/analyzer_worker:latest
           imagePullPolicy: Always
-          command: ["celery"]
-          args: ["-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=1","--pool=solo"]
+          command: [ "celery" ]
+          args: [ "-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=1","--pool=solo" ]
+          envFrom:
+            - configMapRef:
+                name: whisper-config
+            - secretRef:
+                name: whisper-secret
           env:
             - name: REDIS_HOST
               value: redis

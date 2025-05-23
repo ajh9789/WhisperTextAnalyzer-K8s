@@ -6,7 +6,7 @@ services:
     restart: always
   stt_worker:
     build:
-      context: ./stt_worker
+      context: services/stt_worker
     command: celery -A stt_worker:celery worker -Q stt_queue --loglevel=info --concurrency=1 --pool=solo
     environment:
       - REDIS_HOST=redis
@@ -17,7 +17,7 @@ services:
 
   analyzer_worker:
     build:
-      context: ./analyzer_worker
+      context: services/analyzer_worker
     command: celery -A analyzer_worker:celery worker -Q analyzer_queue --loglevel=info --concurrency=1 --pool=solo
     environment:
       - REDIS_HOST=redis
@@ -28,7 +28,7 @@ services:
 
   fastapi_service:
     build:
-      context: ./fastapi_service
+      context: services/fastapi_service
     ports:
       - "8000:8000"
     environment:
