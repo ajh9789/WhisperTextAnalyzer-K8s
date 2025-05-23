@@ -13,10 +13,12 @@ REDIS_PORT = 6379
 redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 celery = Celery("fastapi_service", broker=redis_url)
 
-connected_users = {} # 현재 연결된 WebSocket 사용자 정보를 저장할 딕셔너리
+connected_users = {}  # 현재 연결된 WebSocket 사용자 정보를 저장할 딕셔너리
 positive_count = 0
 negative_count = 0
-http_requests = Counter("http_requests_total", "Total HTTP Requests") # Prometheus 카운터 메트릭 정의
+http_requests = Counter(
+    "http_requests_total", "Total HTTP Requests"
+)  # Prometheus 카운터 메트릭 정의
 
 # Redis pubsub 전역 선언
 pubsub = None
@@ -27,9 +29,11 @@ pubsub = None
 async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비동기 함수 정의
     global pubsub
     # 서버 시작 시: Redis 연결 및 pubsub 구독 설정
-    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True) # Redis 서버와 비동기 연결 설정
+    redis = await redis_from_url(
+        redis_url, encoding="utf-8", decode_responses=True
+    )  # Redis 서버와 비동기 연결 설정
     pubsub = redis.pubsub()  # Redis Pub/Sub 인스턴스 생성
-    await pubsub.subscribe("result_channel") # Redis 채널 구독 시작
+    await pubsub.subscribe("result_channel")  # Redis 채널 구독 시작
     asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
     yield
     # 서버 종료 시: 구독 해제 및 리소스 정리
@@ -64,7 +68,8 @@ def metrics():
 # WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
 @app.websocket("/ws")  # WebSocket 연결 정의
 async def websocket_endpoint(
-    websocket: WebSocket,):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
+    websocket: WebSocket,
+):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
     # Redis 연결 확인
     redis = await redis_from_url(redis_url)  # Redis 서버와 비동기 연결 설정
     try:
@@ -160,7 +165,7 @@ async def redis_subscriber():  # Redis Pub/Sub 메시지 수신 및 처리 루�
             if total:
                 pos_percent = (positive_count / total) * 100
                 neg_percent = (negative_count / total) * 100
-            else:# 감정 분석 결과(긍정/부정) 카운터 초기화
+            else:  # 감정 분석 결과(긍정/부정) 카운터 초기화
                 pos_percent = neg_percent = 0
 
             stats = f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
