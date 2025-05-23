@@ -87,7 +87,7 @@ async def websocket_endpoint(
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
-    TIMEOUT_SECONDS = 2  # 또는 4, 원하는 분석 주기
+    TIMEOUT_SECONDS = 2  # 2초 모아서 stt한테 바로 전달
 
     try:
         while True:
@@ -117,7 +117,11 @@ async def websocket_endpoint(
                 try:
                     celery.send_task(  # Celery를 통해 STT 작업 전송
                         "stt_worker.transcribe_audio",
-                        args=[bytes(buffer)],
+                        args=[  # 브라우저에서 Int16Array로 전처리된 raw PCM 데이터를 그대로 수신
+                            bytes(
+                                buffer
+                            )  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
+                        ],
                         queue="stt_queue",
                     )
                 except Exception as e:
@@ -373,7 +377,7 @@ html = """
                         audioBuffer.push(...chunk); //전개 연산자(Spread operator) chunk가 128프레임 배열이라 각 원소를 하나씩 푸쉬
                             }
 
-                        if (now - lastSendTime >= 500) {   // 초 단위로 녹음
+                        if (now - lastSendTime >= 500) {   // 0.5초 단위로 녹음
                             if (ws.readyState === WebSocket.OPEN) {
                                 const final = new Int16Array(audioBuffer);
                                 ws.send(final.buffer);  // audioBuffer를 Int16Array로 변환해 WebSocket으로 전송

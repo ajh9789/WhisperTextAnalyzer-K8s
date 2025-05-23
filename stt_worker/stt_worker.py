@@ -5,6 +5,7 @@ from scipy.io.wavfile import write  # numpy 배열을 wav 파일로 저장하기
 import whisper as openai_whisper  # OpenAI Whisper 모델 불러오기
 from celery import Celery  # 비동기 작업 처리를 위한 Celery 모듈
 import tempfile  # 임시 파일 생성용 모듈
+from collections import Counter
 
 # from collections import deque
 
@@ -29,22 +30,71 @@ model = openai_whisper.load_model(
 
 
 # ✅ 반복 텍스트 필터 함수
-def is_repetitive(text: str) -> bool:  # 반복 텍스트 필터 함수 정의
-    # 공백 제거 후 문자 반복 (예: 아아아아아)
-    if re.fullmatch(
-        r"(.)\1{4,}", text.replace(" ", "")
-    ):  # 같은 문자가 5번 이상 반복되는 경우 (예: 아아아아아)
+def is_repetitive(text: str) -> bool:
+    # 1. 문자 반복 검사:
+    # 공백을 제거한 후 같은 문자가 5번 이상 반복되면 반복으로 간주
+    # 예: "ㅋㅋㅋㅋㅋ", "아아아아아"
+    if re.fullmatch(r"(.)\1{4,}", text.replace(" ", "")):
         return True
-    # 단어 반복 (예: 좋아요 좋아요 좋아요 좋아요 좋아요)
-    if re.search(
-        r"\b(\w+)\b(?: \1){4,}", text
-    ):  # 같은 단어가 5번 이상 반복되는 경우 (예: 좋아요 좋아요 ...)
+
+    # 2. 단어 반복 검사:
+    # 공백 기준으로 같은 단어가 연속적으로 5회 이상 반복될 경우 필터링
+    # 예: "좋아요 좋아요 좋아요 좋아요 좋아요"
+    if re.search(r"\b(\w+)\b(?: \1){4,}", text):
         return True
-    # 음절 반복 (예: 아 아 아 아 아)
-    if re.fullmatch(
-        r"(.)\s*(?:\1\s*){4,}", text
-    ):  # 음절 단위로 반복되는 경우 (예: 아 아 아 아 아)
+
+    # 3. 음절 반복 검사:
+    # 같은 음절이 공백 포함 형태로 반복되는 경우 필터링
+    # 예: "아 아 아 아 아"
+    if re.fullmatch(r"(.)\s*(?:\1\s*){4,}", text):
         return True
+
+    # 4. 단어 빈도 기반 반복 검사:
+    # 문장에서 특정 단어가 전체 단어의 60% 이상, 5회 이상 등장할 경우 필터링
+    words = re.findall(r"\b\w+\b", text)
+    total = len(words)
+    if total >= 5:
+        freq = Counter(words)
+        most_common, count = freq.most_common(1)[0]
+        if count / total > 0.6 and count >= 5:
+            return True
+
+    # 5. n-gram 반복 검사:
+    # 2단어, 3단어씩 묶인 문장이 반복되는 경우 필터링
+    # 예: "스튜디오에 도착한 스튜디오에 도착한 ..."
+    if is_ngram_repetitive(text, n=2):
+        return True
+    if is_ngram_repetitive(text, n=3):
+        return True
+    return False
+
+
+# n-gram 각 문장을 n개씩 조개서 문장 단위로 체크하는 for문과 갯수체크하는 counter로 이뤄어진 O(n)와 nlogn정도
+def is_ngram_repetitive(text: str, n=2) -> bool:
+    """
+    n-gram 단위 반복 필터 함수
+    ex: "스튜디오에 도착한 스튜디오에 도착한" → 3단어 단위 n-gram 반복
+    """
+    words = text.split()  # 공백 기준 단어 분리
+
+    # n개의 단어를 묶어서 n-gram 리스트 구성
+    ngrams = [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
+
+    if not ngrams:
+        return False
+
+    # n-gram 빈도 측정 (ex: '스튜디오에 도착한': 8회 등)
+    freq = Counter(
+        ngrams
+    )  # ({'스튜디오에 도착한': 3, '도착한 후': 1}) 같은 딕셔너리 형태의 튜플로 추출
+    most_common, count = freq.most_common(1)[
+        0
+    ]  # 가장 많이 나온 n-gram 추출 most_common은 리스트형
+
+    # 전체 n-gram 중 특정 문장이 절반 이상 반복되며 5회 이상 등장하면 필터링
+    if count >= 5 and count / len(ngrams) > 0.5:
+        return True
+
     return False
 
 
@@ -77,7 +127,11 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
             if is_repetitive(text):  # 반복 텍스트 필터링 적용
                 print(f"[STT] ⚠️ 반복 텍스트 감지 → 분석 생략: {text}")
                 return
-
+            # n-gram 반복 검사: 2~3개의 단어로 구성된 구절이 반복되는 패턴 감지
+            if is_ngram_repetitive(text, n=2):
+                return True
+            if is_ngram_repetitive(text, n=3):
+                return True
             print(f"[STT] 🎙️ Whisper STT 결과: {text}")
 
         except Exception as e:
