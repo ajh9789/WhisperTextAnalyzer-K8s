@@ -83,7 +83,7 @@ async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
 
-    TIMEOUT_SECONDS = 2  # 2초 모아서 stt한테 바로 전달
+    TIMEOUT_SECONDS = 4  # 4초 모아서 stt한테 바로 전달
 
     try:
         while True:
