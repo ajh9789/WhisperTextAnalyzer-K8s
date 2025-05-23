@@ -36,7 +36,7 @@ jobs:
       - name: 🐳 Build & Push with cache
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ matrix.service }}
+          context: ./services/${{ matrix.service }} # 로컬경로 바뀌어서 깃 자동빌드 푸쉬가 안된것
           file: ./${{ matrix.service }}/Dockerfile
           push: true
           tags: |
