@@ -8,10 +8,10 @@ metadata:
     #  예: /status → /status 로 그대로 전달됨
 spec:
   rules:
-    - host: localhost             # 브라우저에서 접속할 host (도메인)
+    - host: fastapi.192.168.49.2.nip.io#localhost             # 브라우저에서 접속할 host (도메인)
       http:
         paths:
-          - path: /(.*)           # 모든 경로를 대상으로 라우팅
+          - path: / #/(.*)           # 모든 경로를 대상으로 라우팅
             pathType: Prefix      #  path는 접두사(Prefix) 방식 매칭 (정규식과 함께 써야 작동)
             backend:
               service:
