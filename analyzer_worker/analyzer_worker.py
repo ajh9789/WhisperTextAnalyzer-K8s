@@ -3,26 +3,16 @@ import redis  # Redis에 직접 publish 하기 위한 모듈
 from celery import Celery  # Celery 비동기 작업을 위한 모듈
 from transformers import pipeline  # Huggingface의 사전 학습 모델 파이프라인 모듈
 
-REDIS_HOST = os.getenv(
-    "REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost"
-)  # Redis 주소 환경변수에서 읽기 (도커 여부 고려)
+REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")  # Redis 주소 환경변수에서 읽기 (도커 여부 고려)
 REDIS_PORT = 6379  # Redis 포트 설정 (기본 6379)
-celery = Celery(
-    "analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-)  # Celery 앱 인스턴스 생성 (Redis를 브로커로 사용)
-r = redis.Redis(
-    host=REDIS_HOST, port=REDIS_PORT
-)  # Redis publish용 동기 클라이언트 인스턴스 생성
+celery = Celery("analyzer_worker", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")  # Celery 앱 인스턴스 생성 (Redis를 브로커로 사용)
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)  # Redis publish용 동기 클라이언트 인스턴스 생성
 
-classifier = pipeline(  # 감정 분석용 Transformers 파이프라인 모델 초기화
-    "sentiment-analysis",
-    model="distilbert/distilbert-base-uncased-finetuned-sst-2-english",
-)
+# 감정 분석용 Transformers 파이프라인 모델 초기화
+classifier = pipeline("sentiment-analysis", model="distilbert/distilbert-base-uncased-finetuned-sst-2-english", )
 
 
-@celery.task(
-    name="analyzer_worker.analyzer_text", queue="analyzer_queue"
-)  # Celery 태스크로 analyzer_text 등록
+@celery.task(name="analyzer_worker.analyzer_text", queue="analyzer_queue")  # Celery 태스크로 analyzer_texS 등록
 def analyzer_text(text):  # 텍스트 감정 분석 및 Redis 전송 함수 정의
     print("[STT] → [Analyzer] Celery 전달 text 수신")
     try:
