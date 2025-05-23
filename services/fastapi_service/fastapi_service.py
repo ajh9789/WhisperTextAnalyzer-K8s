@@ -3,7 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager  # ✅ lifespan 구현용
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from prometheus_client import Counter, generate_latest
+from prometheus_client import Counter, generate_latest, Gauge
 from fastapi import Response
 from redis.asyncio import from_url as redis_from_url
 from celery import Celery
@@ -14,11 +14,17 @@ redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 celery = Celery("fastapi_service", broker=redis_url)
 
 connected_users = {}  # 현재 연결된 WebSocket 사용자 정보를 저장할 딕셔너리
+# 통계용 수치들
 positive_count = 0
 negative_count = 0
-http_requests = Counter(
-    "http_requests_total", "Total HTTP Requests"
-)  # Prometheus 카운터 메트릭 정의
+# Prometheus 카운터 메트릭 정의
+http_requests = Counter("http_requests_total", "Total HTTP Requests")
+# Prometheus Gauge 메트릭 선언
+active_users_gauge = Gauge("connected_users_total", "현재 연결된 유저 수")
+positive_gauge = Gauge("emotion_positive_total", "👍 긍정 카운트")
+negative_gauge = Gauge("emotion_negative_total", "👎 부정 카운트")
+pos_percent_gauge = Gauge("emotion_positive_percent", "👍 긍정%")
+neg_percent_gauge = Gauge("emotion_negative_percent", "👎 부정%")
 
 # Redis pubsub 전역 선언
 pubsub = None
@@ -54,12 +60,14 @@ async def get():  # '/' 경로 처리 함수
 # 감정 분석 통계 API
 @app.get("/status")  # 감정 통계용 API
 def status():
+    # 상태 응답
     return {"positive": positive_count, "negative": negative_count}
 
 
 # Prometheus 메트릭 엔드포인트
 @app.get("/metrics")  # Prometheus 메트릭 노출용 API
 def metrics():
+    # 매트릭 갱신
     return Response(generate_latest(), media_type="text/plain")
 
 
@@ -78,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오
     # WebSocket 연결 수락 및 사용자 등록
     await websocket.accept()
     connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
-
+    active_users_gauge.set(len(connected_users))  # 실시간 유저 인원 반영
     # 전체 인원 브로드캐스트
     for user in connected_users:
         await user.send_text(f"PEOPLE:{len(connected_users)}")
@@ -100,17 +108,10 @@ async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오
 
             buffer.extend(audio_chunk)
 
-            if (
-                    asyncio.get_event_loop().time() - user_state["start_time"]
-                    >= TIMEOUT_SECONDS
-            ):
-                print(
-                    f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}"
-                )
-
-                try:
-                    celery.send_task(  # Celery를 통해 STT 작업 전송# 브라우저에서 Int16Array로 전처리된 raw PCM 데이터를 그대로 수신
-                        "stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue", )
+            if (asyncio.get_event_loop().time() - user_state["start_time"] >= TIMEOUT_SECONDS):
+                print(f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}")
+                try:  # Celery를 통해 STT 작업 전송# 브라우저에서 Int16Array로 전처리된 raw PCM데이터를 그대로 수신
+                    celery.send_task("stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue", )
                 except Exception as e:  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
                     print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
                 # 버퍼 및 타이머 초기화
@@ -118,6 +119,7 @@ async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오
 
     except WebSocketDisconnect:  # WebSocket 연결 끊김 예외 처리
         connected_users.pop(websocket, None)  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
+        active_users_gauge.set(len(connected_users))  # 실시간 연결 유저 인원 반영
         for user in connected_users:
             await user.send_text(f"PEOPLE:{len(connected_users)}")
 
@@ -155,6 +157,12 @@ async def redis_subscriber():  # Redis Pub/Sub 메시지 수신 및 처리 루�
                 neg_percent = (negative_count / total) * 100
             else:  # 감정 분석 결과(긍정/부정) 카운터 초기화
                 pos_percent = neg_percent = 0
+
+            # 실시간 메트릭 갱신
+            positive_gauge.set(positive_count)
+            negative_gauge.set(negative_count)
+            pos_percent_gauge.set(pos_percent)
+            neg_percent_gauge.set(neg_percent)
 
             stats = f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
             print(f"[FastAPI] 📊 {stats}")
