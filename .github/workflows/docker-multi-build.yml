@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./services/${{ matrix.service }} # 로컬경로 바뀌어서 깃 자동빌드 푸쉬가 안된것
-          file: ./${{ matrix.service }}/Dockerfile
+          file: ./services/${{ matrix.service }}/Dockerfile # 파일 경로도 정확히 수정
           push: true
           tags: |
             ajh9789/${{ matrix.service }}:latest
