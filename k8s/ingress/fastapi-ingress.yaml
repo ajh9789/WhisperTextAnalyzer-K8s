@@ -8,7 +8,7 @@ metadata:
     #  예: /status → /status 로 그대로 전달됨
 spec:
   rules:
-    - host: fastapi.192.168.49.2.nip.io#localhost             # 브라우저에서 접속할 host (도메인)
+    - host: fastapi.192.168.49.2.nip.io  #localhost             # 브라우저에서 접속할 host (도메인)
       http:
         paths:
           - path: / #/(.*)           # 모든 경로를 대상으로 라우팅
