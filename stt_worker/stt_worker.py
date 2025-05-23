@@ -53,11 +53,14 @@ def is_repetitive(text: str) -> bool:  # 반복 텍스트 필터 함수 정의
 )  # Celery 태스크 등록: STT 작업 함수
 def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
     print("[STT] 🎧 오디오 청크 수신")
+    audio_np = np.frombuffer(
+        audio_bytes, dtype=np.int16
+    )  # 'bytes' 데이터를 numpy int16 배열로 변환
     with tempfile.NamedTemporaryFile(
         suffix=".wav"
     ) as tmpfile:  # 오디오 데이터를 임시 WAV 파일로 저장
         write(
-            tmpfile.name, 16000, audio_bytes.astype(np.int16)
+            tmpfile.name, 16000, audio_np.astype(np.int16)
         )  # numpy 배열을 16kHz wav로 저장
         try:
             result = model.transcribe(
