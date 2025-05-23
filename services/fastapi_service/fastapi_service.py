@@ -23,8 +23,8 @@ http_requests = Counter("http_requests_total", "Total HTTP Requests")
 active_users_gauge = Gauge("connected_users_total", "현재 연결된 유저 수")
 positive_gauge = Gauge("emotion_positive_total", "👍 긍정 카운트")
 negative_gauge = Gauge("emotion_negative_total", "👎 부정 카운트")
-pos_percent_gauge = Gauge("emotion_positive_percent", "👍 긍정%")
-neg_percent_gauge = Gauge("emotion_negative_percent", "👎 부정%")
+pos_percent_gauge = Gauge("emotion_positive_percent", "👍 긍정 비율")
+neg_percent_gauge = Gauge("emotion_negative_percent", "👎 부정 비율")
 
 # Redis pubsub 전역 선언
 pubsub = None
