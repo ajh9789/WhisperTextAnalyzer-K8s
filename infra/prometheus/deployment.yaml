@@ -14,15 +14,14 @@ spec:
     spec:
       containers:
         - name: prometheus
-          image: prom/prometheus:v2.52.0
+          image: prom/prometheus
           args:
-            - '--config.file=/etc/prometheus/prometheus.yml'  # 위 ConfigMap으로부터 설정 주입
+            - "--config.file=/etc/prometheus/prometheus.yml"
           ports:
             - containerPort: 9090
-              hostPort: 9090  #단일 노드 테스트용
           volumeMounts:
             - name: prometheus-config
-              mountPath: /etc/prometheus/prometheus.yml  # 설정 파일 위치
+              mountPath: /etc/prometheus/prometheus.yml
               subPath: prometheus.yml
       volumes:
         - name: prometheus-config
