@@ -17,3 +17,4 @@ spec:
           image: grafana/grafana:10.4.1
           ports:
             - containerPort: 3000
+              hostPort: 3000  #단일 노드 테스트용

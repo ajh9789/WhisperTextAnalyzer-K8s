@@ -19,6 +19,7 @@ spec:
             - '--config.file=/etc/prometheus/prometheus.yml'  # 위 ConfigMap으로부터 설정 주입
           ports:
             - containerPort: 9090
+              hostPort: 9090  #단일 노드 테스트용
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus  # 설정 파일 위치

@@ -10,6 +10,7 @@ data:
       scrape_interval: 5s  # 메트릭 수집 주기 (기본: 1분 → 5초로 조정)
 
     scrape_configs:
-      - job_name: 'fastapi'
+      - job_name: 'fastapi_app'
         static_configs:
-          - targets: [ 'fastapi-service.default.svc.cluster.local:8000' ]  # FastAPI 서비스 메트릭 수집 대상
+          - targets: [ 'localhost:8000' ]  # 단일 노드 테스트
+        # - targets: [ 'fastapi-service.default.svc.cluster.local:8000' ]  # FastAPI 서비스 메트릭 수집 대상

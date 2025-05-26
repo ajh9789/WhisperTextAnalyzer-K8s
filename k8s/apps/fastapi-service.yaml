@@ -19,6 +19,7 @@ spec:
           #포트
           ports:
             - containerPort: 8000
+              hostPort: 8000 #단일 노드 테스트용
           #커맨드
           command: [ "uvicorn" ]
           args: [ "fastapi_service:app", "--host", "0.0.0.0", "--port", "8000" ]
