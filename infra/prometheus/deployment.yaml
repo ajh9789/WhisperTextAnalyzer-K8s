@@ -21,9 +21,10 @@ spec:
             - containerPort: 9090
               hostPort: 9090  #단일 노드 테스트용
           volumeMounts:
-            - name: config
-              mountPath: /etc/prometheus  # 설정 파일 위치
+            - name: prometheus-config
+              mountPath: /etc/prometheus/prometheus.yml  # 설정 파일 위치
+              subPath: prometheus.yml
       volumes:
-        - name: config
+        - name: prometheus-config
           configMap:
             name: prometheus-config
