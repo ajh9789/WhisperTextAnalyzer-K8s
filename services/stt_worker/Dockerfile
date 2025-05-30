@@ -11,9 +11,8 @@ RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
 RUN pip install --upgrade pip setuptools wheel
 
 # ✅ torch & torchaudio GPU 버전 (CUDA 11.5, Python 3.10) 직접 설치
-RUN pip install \
-  https://download.pytorch.org/whl/cu115/torch-1.10.0%2Bcu115-cp310-cp310-linux_x86_64.whl \
-  https://download.pytorch.org/whl/cu115/torchaudio-0.10.0%2Bcu115-cp310-cp310-linux_x86_64.whl
+RUN pip install torch==1.10.0+cu115 torchaudio==0.10.0+cu115 \
+    -f https://download.pytorch.org/whl/torch_stable.html
 
 # requirements_gpu.txt → requirements.txt 이름으로 복사
 COPY requirements_gpu.txt ./requirements.txt
