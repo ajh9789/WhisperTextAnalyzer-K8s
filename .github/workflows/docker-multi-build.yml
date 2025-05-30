@@ -40,8 +40,8 @@ jobs:
           context: ./services/${{ matrix.service }}  # 서비스별 빌드 컨텍스트 경로
           file: ./services/${{ matrix.service }}/Dockerfile  # 정확한 Dockerfile 경로
           push: true  # 이미지 푸시 활성화
-          tags:
-            - ghcr.io/ajh9789/${{ matrix.service }}:latest  # 최신 태그용
-            - ghcr.io/ajh9789/${{ matrix.service }}:${{ github.sha }}  # 커밋 해시로 고유 태그
+          tags: | # 최신 태그용, 커밋 해시로 고유 태그
+            ghcr.io/ajh9789/${{ matrix.service }}:latest  
+            ghcr.io/ajh9789/${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}  # 빌드 캐시 불러오기 (서비스 단위 스코프)
           cache-to: type=gha,mode=min,scope=${{ matrix.service }}  # 빌드 캐시 저장 (최소 모드)
