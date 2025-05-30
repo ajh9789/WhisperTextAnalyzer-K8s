@@ -30,7 +30,7 @@ jobs:
       - name: 🧹 Delete old workflow runs (keep latest 30)
         run: | # 최신 30개 제외하고 나머지를 슬라이스해서 삭제
           echo "🧹 Keeping latest 30 runs of 'docker-multi-build.yml' and deleting the rest..."
-
+          
           run_ids=$(gh run list \
             --workflow docker-multi-build.yml \
             --limit 100 \
@@ -41,7 +41,7 @@ jobs:
           for run_id in $run_ids; do
             if [ $index -ge 30 ]; then
               echo "🗑️ Deleting run: $run_id"
-              gh run delete $run_id --confirm
+              yes | gh run delete $run_id
             fi
             index=$((index+1))
           done
