@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest  # Ubuntu 최신 환경에서 실행
 
     steps:
+      - name: 📥 Checkout repository  # 먼저 GitHub 리포지토리 체크아웃
+        uses: actions/checkout@v4
+
       - name: 📦 Install GitHub CLI  # GitHub CLI(gh) 설치
         run: |
           sudo apt-get update
