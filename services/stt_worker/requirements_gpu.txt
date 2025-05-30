@@ -4,4 +4,3 @@ celery==5.3.6
 redis==5.0.4
 fastapi==0.115.2
 openai-whisper==20240930
-
