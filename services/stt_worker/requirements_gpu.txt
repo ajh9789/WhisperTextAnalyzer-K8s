@@ -1,14 +1,9 @@
 numpy==1.24.4
-#gpu 테스트 numpy==1.26.4
 scipy==1.13.0
 celery==5.3.6
 redis==5.0.4
 fastapi==0.115.2
-uvicorn[standard]==0.29.0
-#gpu 테스트torch==2.2.2+cpu
-#gpu 테스트 -f https://download.pytorch.org/whl/torch_stable.html
 torch==1.10.0+cu115
 torchaudio==0.10.0+cu115
 openai-whisper==20240930
 --extra-index-url https://download.pytorch.org/whl/cu115
-
