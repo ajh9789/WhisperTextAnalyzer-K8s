@@ -2,7 +2,6 @@ import os  # 운영체제 환경변수 접근을 위한 모듈
 import re  # 정규표현식 처리 모듈
 import numpy as np  # 오디오 데이터를 배열로 처리하기 위한 numpy 모듈
 from scipy.io.wavfile import write  # numpy 배열을 wav 파일로 저장하기 위한 write 함수
-import torch  # GPU/CPU 여부 확인을 위한 torch
 import whisper as openai_whisper  # OpenAI Whisper 모델 불러오기
 from celery import Celery  # 비동기 작업 처리를 위한 Celery 모듈
 import tempfile  # 임시 파일 생성용 모듈
@@ -10,19 +9,15 @@ from collections import Counter
 
 # from collections import deque
 
-# gpu 설정 cuda
-device = "cuda" if torch.cuda.is_available() else "cpu"
-use_fp16 = device == "cuda"
-print(f"[STT] ✅ 디바이스 설정: {device}, fp16: {use_fp16}")
 # 기본 설정
 REDIS_HOST = os.getenv("REDIS_HOST", "redis" if os.getenv("DOCKER") else "localhost")  # Redis 주소 환경 변수로 설정 (도커 환경 고려)
 celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:6379/0")  # Celery 앱 인스턴스 생성 및 Redis 브로커 설정
 
 # Whisper 모델 로드
-model_size = os.getenv("MODEL_SIZE", "medium")  # Whisper 모델 사이즈 설정 (tiny, base 등)
+model_size = os.getenv("MODEL_SIZE", "tiny")  # Whisper 모델 사이즈 설정 (tiny, base 등)
 model_path = os.getenv("MODEL_PATH", "/app/models")  # 모델 다운로드 저장 경로 지정
 os.makedirs(model_path, exist_ok=True)  # 모델 저장 경로가 없을 경우 생성
-model = openai_whisper.load_model(model_size, download_root=model_path).to(device)  # Whisper 모델 로드 및 다운로드
+model = openai_whisper.load_model(model_size, download_root=model_path)  # Whisper 모델 로드 및 다운로드
 
 
 # 메모리 내 4초 누적 버퍼 (deque로 변경) 웹서버에서 받는걸로 결정 다중이용자 고려하기 편함
@@ -89,7 +84,7 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:  # 오디오 데이터를 임시 WAV 파일로 저장
         write(tmpfile.name, 16000, audio_np.astype(np.int16))  # numpy 배열을 16kHz wav로 저장
         try:
-            result = model.transcribe(tmpfile.name, language="ko", fp16=use_fp16, device=device)  # Whisper 모델로 음성 인식 수행
+            result = model.transcribe(tmpfile.name, language="ko", fp16=False)  # Whisper 모델로 음성 인식 수행
             text = result.get("text", "").strip()  # 결과에서 앞뒤 텍스트 추출 및 공백 제거
             if not text:  # 공백 결과일 경우 분석 생략
                 print("[STT] ⚠️ 공백 텍스트 → 분석 생략")

@@ -18,14 +18,7 @@ spec:
           imagePullPolicy: Always
           #커멘드
           command: [ "celery" ]
-          args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue" ]
-          #args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue", "--concurrency=1","--pool=solo" ]
-          resources:
-            limits:
-              nvidia.com/gpu: 1       # GPU 1개 강제 할당 (절대값)
-            requests:
-              memory: 4Gi           # 최소 4GiB RAM 예약 (보장됨)
-              cpu: 1               # 최소 CPU 1개 보장 (다른 Pod과 공유 가능)
+          args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue", "--concurrency=1","--pool=solo" ]
           #환경설정
           envFrom:
             - configMapRef:
