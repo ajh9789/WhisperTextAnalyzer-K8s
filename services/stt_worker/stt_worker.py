@@ -10,7 +10,7 @@ from collections import Counter
 
 # from collections import deque
 
-# gpu 설정
+# gpu 설정 cuda 잡히면 cuda로 연산
 device = "cuda" if torch.cuda.is_available() else "cpu"
 use_fp16 = device == "cuda"
 print(f"[STT] ✅ 디바이스 설정: {device}, fp16: {use_fp16}")
