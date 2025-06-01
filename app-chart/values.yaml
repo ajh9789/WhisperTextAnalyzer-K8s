@@ -127,19 +127,25 @@ fastapi:
     repository: ghcr.io/ajh9789/fastapi_service
     tag: latest
     pullPolicy: Always
+
   containerPort: 8000
+
   command: [ "uvicorn" ]
   args: [ "fastapi_service:app", "--host", "0.0.0.0", "--port", "8000" ]
+
   env:
     - name: REDIS_HOST
       value: redis
+
   envFrom:
     - configMapRef:
         name: whisper-config
     - secretRef:
         name: whisper-secret
+
   imagePullSecrets:
     - name: ghcr-secret
+
   livenessProbe:
     httpGet:
       path: /
@@ -147,6 +153,7 @@ fastapi:
     initialDelaySeconds: 10
     periodSeconds: 10
     failureThreshold: 3
+
   readinessProbe:
     httpGet:
       path: /status
