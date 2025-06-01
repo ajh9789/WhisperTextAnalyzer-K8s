@@ -1,0 +1,19 @@
+apiVersion: apps/v1                 # Deployment (Pod 정의 + 관리)
+kind: Deployment
+metadata:
+  name: redis-deploy                  # kubectl get deployment 시 보일 이름
+spec:
+  replicas: 1                         # Redis는 보통 단일 Pod로 시작 (Master/Replica는 나중에)
+  selector:
+    matchLabels:
+      app: redis                      # ↓ template.metadata.labels 와 반드시 일치해야 함
+  template:
+    metadata:
+      labels:
+        app: redis                    # 이 라벨이 실제 Pod에 붙음
+    spec:
+      containers:
+        - name: redis                 # Pod 내부 컨테이너 이름 (내부 구분용)
+          image: redis:7.2-alpine     # 가벼운 Redis 이미지
+          ports:
+            - containerPort: 6379     # Redis 기본 포트

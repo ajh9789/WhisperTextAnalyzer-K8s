@@ -1,20 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stt-worker
+  name: stt-wkr-deploy
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: stt-worker
+      app: stt-wkr
   template:
     metadata:
       labels:
-        app: stt-worker
+        app: stt-wkr
     spec:
       containers:
         - name: stt-worker
           image: ajh9789/stt_worker:latest
+          resources:
+            requests:
+              cpu: 500m         # 0.5 코어
+              memory: 512Mi
+            limits:
+              cpu: 1000m        # 최대 1 코어
+              memory: 1536Mi
           imagePullPolicy: Always
           #커멘드
           command: [ "celery" ]
@@ -22,7 +29,7 @@ spec:
           #환경설정
           envFrom:
             - configMapRef:
-                name: whisper-config
+                name: stt-config
             - secretRef:
                 name: whisper-secret
           env:

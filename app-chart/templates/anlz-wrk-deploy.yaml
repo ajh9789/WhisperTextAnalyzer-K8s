@@ -1,19 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: analyzer-worker
+  name: anlz-wrk-deploy              # ← 디플로이 이름 (kubectl get deployment 시 출력됨)
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: analyzer-worker
+      app: anlz-wrk           # ← 여기랑 ↓ template.metadata.labels.app 이랑 **반드시 일치해야 함**
   template:
     metadata:
       labels:
-        app: analyzer-worker
+        app: anlz-wrk         # ← Pod에 찍히는 라벨. selector랑 같아야 디플로이가 이 Pod 관리함
+        # ※ 여기 라벨이 실제 Pod에 붙는 라벨이 됨
     spec:
       containers:
-        - name: analyzer-worker
+        - name: analyzer-worker      # ← 컨테이너 이름. Pod 안에서만 구분용 (kubectl describe pod 보면 나옴)
           image: ajh9789/analyzer_worker:latest
           imagePullPolicy: Always
           command: [ "celery" ]

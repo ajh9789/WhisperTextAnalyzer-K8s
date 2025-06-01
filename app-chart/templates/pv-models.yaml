@@ -9,15 +9,3 @@ spec:
     - ReadWriteOnce
   hostPath:
     path: /data/models #로컬 경로 (minikube vm 내부)
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: pvc-models
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
