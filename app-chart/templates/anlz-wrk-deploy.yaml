@@ -13,6 +13,8 @@ spec:
         app: anlz-wrk         # ← Pod에 찍히는 라벨. selector랑 같아야 디플로이가 이 Pod 관리함
         # ※ 여기 라벨이 실제 Pod에 붙는 라벨이 됨
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: analyzer-worker      # ← 컨테이너 이름. Pod 안에서만 구분용 (kubectl describe pod 보면 나옴)
           image: ghcr.io/ajh9789/analyzer_worker:latest

@@ -11,6 +11,8 @@ spec:
       labels:
         app: fastapi       # ← 이게 실제 Pod에 붙는 라벨 (↑selector와 반드시 일치해야 연결됨)
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers: # 네임은 리스트형식
         - name: fastapi-service # pod안에 여러 컨테이너를 정의 가능하기때문
           image: ghcr.io/ajh9789/fastapi_service:latest  # ← 이건 DockerHub이므로 언더스코어 OK

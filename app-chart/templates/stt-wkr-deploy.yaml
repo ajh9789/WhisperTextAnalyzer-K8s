@@ -12,6 +12,8 @@ spec:
       labels:
         app: stt-wkr
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: stt-worker
           image: ghcr.io/ajh9789/stt_worker:latest
