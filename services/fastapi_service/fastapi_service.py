@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비�
 app = FastAPI(lifespan=lifespan)  # lifespan을 적용한 FastAPI 앱 인스턴스 생성
 
 
-# 루트 엔드포인트 - 상태 확인용 HTML 응답
+# 루트 엔드포인트 - 상태 확인용 HTML 응답#
 @app.get("/")  # 루트 경로: HTML 반환
 async def get():  # '/' 경로 처리 함수
     http_requests.inc()
