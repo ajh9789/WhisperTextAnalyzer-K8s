@@ -256,7 +256,7 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
   rules:
-    - host: localhost
+    - host: local.fastapi.test
       http:
         paths:
           - path: /fastapi
@@ -270,9 +270,16 @@ ingress:
             pathType: Prefix
             backend:
               service:
-                name: grafana
+                name: monitoring-grafana
                 port:
                   number: 80
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-operated
+                port:
+                  number: 9090
 
 grafana:
   enabled: true
