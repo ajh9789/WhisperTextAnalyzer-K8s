@@ -1,7 +1,7 @@
 apiVersion: v1                        # Service (Pod 접근용 프록시 역할)
 kind: Service
-metadata:
-  name: redis                    # 다른 Pod에서 'redis6379'로 접근 가능
+metadata: # 다른 Pod에서 'redis'로 접근 가능
+  name: redis                    # 이름 -svc붙였다가 안됨 환경설정도 이름맞춰서 환경설정도 바꿔야할듯
 spec:
   selector:
     app: redis                        # Deployment에서 설정한 label과 반드시 일치해야 연결됨
