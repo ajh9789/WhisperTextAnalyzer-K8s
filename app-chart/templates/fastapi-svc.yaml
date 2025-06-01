@@ -4,7 +4,6 @@ metadata:
   name: fastapi-svc
   labels:
     app: fastapi-svc
-
 spec:
   type: {{ .Values.fastapi.service.type }}
   selector:

@@ -18,18 +18,15 @@ spec:
         - name: stt-worker
           image: "{{ .Values.sttWorker.image.repository }}:{{ .Values.sttWorker.image.tag }}"
           imagePullPolicy: {{ .Values.sttWorker.image.pullPolicy }}
-          ports:
-            - containerPort: {{ .Values.sttWorker.containerPort }}
           command: {{ toJson .Values.sttWorker.command }}
           args: {{ toJson .Values.sttWorker.args }}
-          env:
-            {{- toYaml .Values.sttWorker.env | nindent 12 }}
           envFrom:
             {{- toYaml .Values.sttWorker.envFrom | nindent 12 }}
+          env:
+            {{- toYaml .Values.sttWorker.env | nindent 12 }}
           resources:
             {{- toYaml .Values.sttWorker.resources | nindent 12 }}
           volumeMounts:
-                {{- toYaml .Values.sttWorker.volumeMounts | nindent 12 }}
+            {{- toYaml .Values.sttWorker.volumeMounts | nindent 12 }}
       volumes:
         {{- toYaml .Values.sttWorker.volumes | nindent 8 }}
-

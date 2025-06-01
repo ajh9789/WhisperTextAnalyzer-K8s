@@ -26,6 +26,6 @@ spec:
           env:
             {{- toYaml .Values.fastapi.env | nindent 12 }}
           livenessProbe:
-            {{- toYaml .Values.fastapi.livenessProbe | nindent 12 }}
+            {{- toYaml .Values.fastapi.livenessProbe | nindent 10 }}
           readinessProbe:
-            {{- toYaml .Values.fastapi.readinessProbe | nindent 12 }}
+            {{- toYaml .Values.fastapi.readinessProbe | nindent 10 }}

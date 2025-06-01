@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fastapi-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  fastapi-dashboard.json: |
+    {
+      "id": null,
+      "title": "FastAPI Monitoring",
+      "timezone": "browser",
+      "panels": [
+        {
+          "type": "stat",
+          "title": "요청 수",
+          "targets": [
+            {
+              "expr": "http_requests_total",
+              "format": "time_series",
+              "interval": ""
+            }
+          ],
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          }
+        },
+        {
+          "type": "gauge",
+          "title": "현재 연결된 유저 수",
+          "targets": [
+            {
+              "expr": "connected_users_total"
+            }
+          ],
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "users"
+            }
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          }
+        },
+        {
+          "type": "stat",
+          "title": "긍정 감정 카운트",
+          "targets": [
+            {
+              "expr": "emotion_positive_total"
+            }
+          ],
+          "datasource": "Prometheus",
+          "gridPos": {
+            "x": 0,
+            "y": 4,
+            "w": 6,
+            "h": 4
+          }
+        },
+        {
+          "type": "stat",
+          "title": "부정 감정 카운트",
+          "targets": [
+            {
+              "expr": "emotion_negative_total"
+            }
+          ],
+          "datasource": "Prometheus",
+          "gridPos": {
+            "x": 6,
+            "y": 4,
+            "w": 6,
+            "h": 4
+          }
+        },
+        {
+          "type": "gauge",
+          "title": "긍정 감정 비율 (%)",
+          "targets": [
+            {
+              "expr": "emotion_positive_percent"
+            }
+          ],
+          "datasource": "Prometheus",
+          "gridPos": {
+            "x": 0,
+            "y": 8,
+            "w": 6,
+            "h": 4
+          }
+        },
+        {
+          "type": "gauge",
+          "title": "부정 감정 비율 (%)",
+          "targets": [
+            {
+              "expr": "emotion_negative_percent"
+            }
+          ],
+          "datasource": "Prometheus",
+          "gridPos": {
+            "x": 6,
+            "y": 8,
+            "w": 6,
+            "h": 4
+          }
+        }
+      ],
+      "schemaVersion": 30,
+      "version": 1
+    }
