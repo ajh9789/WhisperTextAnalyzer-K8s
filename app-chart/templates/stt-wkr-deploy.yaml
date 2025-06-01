@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: stt-worker
-          image: ajh9789/stt_worker:latest
+          image: ghcr.io/ajh9789/stt_worker:latest
           resources:
             requests:
               cpu: 500m         # 0.5 코어

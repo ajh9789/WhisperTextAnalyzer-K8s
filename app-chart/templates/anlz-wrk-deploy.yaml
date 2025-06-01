@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: analyzer-worker      # ← 컨테이너 이름. Pod 안에서만 구분용 (kubectl describe pod 보면 나옴)
-          image: ajh9789/analyzer_worker:latest
+          image: ghcr.io/ajh9789/analyzer_worker:latest
           imagePullPolicy: Always
           command: [ "celery" ]
           args: [ "-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=1","--pool=solo" ]
