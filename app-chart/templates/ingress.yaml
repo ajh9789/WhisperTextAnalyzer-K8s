@@ -1,34 +1,37 @@
-apiVersion: networking.k8s.io/v1  #  Ingress 리소스의 API 버전 (Kubernetes 1.19 이상에서 v1 사용)
-kind: Ingress                     #  리소스 타입: Ingress (브라우저 ↔ 클러스터 입구 역할)
+apiVersion: networking.k8s.io/v1  # Ingress 리소스의 API 버전 (Kubernetes 1.19 이상에서 v1 사용)
+kind: Ingress                     # 리소스 타입: Ingress (브라우저 ↔ 클러스터 입구 역할)
 metadata:
-  name: fastapi-ingress           #  이 Ingress 리소스의 이름
+  name: fastapi-ingress           # 이 Ingress 리소스의 이름 (kubectl로 조회할 때 사용)
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
-    #  정규식 캡쳐(/(.*))된 경로를 실제 서비스에 /$1 형태로 전달함
-    #  예: /status → /status 로 그대로 전달됨
+    # rewrite-target: 정규식 캡쳐(/(.*))된 경로를 실제 서비스에 /$1 형태로 전달함
+    # 예: /fastapi/status → /status 로 변환되어 서비스에 전달됨
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # use-regex: true 설정 시 path에서 정규표현식 사용 가능 (예: /fastapi(/|$)(.*))
 spec:
+  ingressClassName: nginx         # Ingress Controller가 "nginx" 클래스일 경우 명시적으로 지정 (Helm 설치 시 ingressClass 설정 필수)
   rules:
-    - host: localhost             # 브라우저에서 접속할 host (도메인)
+    - host: local.fastapi.test    # 클라이언트가 접근할 도메인 이름 (hosts 파일에 IP 매핑 필요)
       http:
         paths:
-          - path: /fastapi(/|$)(.*)         # 모든 경로를 대상으로 라우팅
-            pathType: Prefix      #  path는 접두사(Prefix) 방식 매칭 (정규식과 함께 써야 작동)
+          - path: /fastapi(/|$)(.*)         # /fastapi 하위의 모든 경로를 대상으로 라우팅
+            pathType: Prefix               # pathType이 Prefix일 때 정규식과 함께 사용 가능 (use-regex 필요)
             backend:
               service:
-                name: fastapi-svc   # 요청을 포워딩할 대상 서비스 이름 (Service 리소스 이름)
+                name: fastapi-svc          # 실제 요청을 처리할 Kubernetes 서비스 이름
                 port:
-                  number: 8000          # 그 서비스의 포트 (fastapi가 8000에서 실행되므로 맞음)
-          - path: /prometheus(/|$)(.*)
+                  number: 8000             # 서비스가 바인딩된 포트 번호 (FastAPI 애플리케이션)
+          - path: /prometheus(/|$)(.*)     # /prometheus 하위 경로도 같은 방식으로 처리
             pathType: Prefix
             backend:
               service:
-                name: prometheus-svc
+                name: prometheus-svc       # Prometheus 대시보드가 연결된 서비스 이름
                 port:
-                  number: 9090
-          - path: /grafana(/|$)(.*)
+                  number: 9090             # Prometheus UI 기본 포트
+          - path: /grafana(/|$)(.*)        # /grafana 하위 경로도 동일하게 적용
             pathType: Prefix
             backend:
               service:
-                name: grafana-svc
+                name: grafana-svc          # Grafana 대시보드 서비스 이름
                 port:
-                  number: 3000
+                  number: 3000             # Grafana UI 기본 포트 (브라우저 접근용)
