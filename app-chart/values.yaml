@@ -265,7 +265,7 @@ ingress:
               service:
                 name: fastapi-svc
                 port:
-                  number: 80
+                  number: 8000
           - path: /grafana
             pathType: Prefix
             backend:
