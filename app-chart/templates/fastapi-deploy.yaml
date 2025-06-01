@@ -1,3 +1,5 @@
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: fastapi-deploy    # 디플로이 리소스 이름
 spec:
