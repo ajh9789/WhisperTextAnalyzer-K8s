@@ -3,10 +3,9 @@ kind: Service
 metadata:
   name: prometheus-svc
 spec:
-  type: NodePort  # 외부 접근용 (kubectl port-forward 또는 노드포트 직접 사용)
+  type: ClusterIP  # 외부 접근용 (kubectl port-forward 또는 노드포트 직접 사용)
   ports:
     - port: 9090
       targetPort: 9090
-      nodePort: 30090
   selector:
     app: prometheus

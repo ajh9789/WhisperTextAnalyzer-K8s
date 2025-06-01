@@ -6,10 +6,9 @@ metadata:
     app: fastapi-svc       # 이건 크게 중요하진 않음 (디버깅용 태그일 뿐)
 
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: fastapi           # ← 이게 진짜 중요. Pod의 app 라벨과 **일치해야 연결**됨
   ports:
     - port: 8000
       targetPort: 8000
-      nodePort: 30800

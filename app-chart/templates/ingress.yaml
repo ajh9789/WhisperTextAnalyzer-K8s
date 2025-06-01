@@ -11,10 +11,24 @@ spec:
     - host: localhost             # 브라우저에서 접속할 host (도메인)
       http:
         paths:
-          - path: /(.*)           # 모든 경로를 대상으로 라우팅
+          - path: /fastapi(/|$)(.*)         # 모든 경로를 대상으로 라우팅
             pathType: Prefix      #  path는 접두사(Prefix) 방식 매칭 (정규식과 함께 써야 작동)
             backend:
               service:
-                name: fastapi-service   # 요청을 포워딩할 대상 서비스 이름 (Service 리소스 이름)
+                name: fastapi-svc   # 요청을 포워딩할 대상 서비스 이름 (Service 리소스 이름)
                 port:
                   number: 8000          # 그 서비스의 포트 (fastapi가 8000에서 실행되므로 맞음)
+          - path: /prometheus(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-svc
+                port:
+                  number: 9090
+          - path: /grafana(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana-svc
+                port:
+                  number: 3000
