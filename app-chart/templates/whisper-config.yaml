@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: stt-config
+  name: whisper-config
 data:
   REDIS_HOST: redis
   MODEL_PATH: /app/models

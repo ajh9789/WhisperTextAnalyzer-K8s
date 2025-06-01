@@ -31,7 +31,7 @@ spec:
           #환경설정
           envFrom:
             - configMapRef:
-                name: stt-config
+                name: whisper-config
             - secretRef:
                 name: whisper-secret
           env:
