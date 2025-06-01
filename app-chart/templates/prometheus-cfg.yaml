@@ -12,4 +12,4 @@ data:
     scrape_configs:
       - job_name: 'fastapi_app'
         static_configs:
-          - targets: [ 'fastapi-service.default.svc.cluster.local:8000' ]  # FastAPI 서비스 메트릭 수집 대상
+          - targets: [ 'fastapi-svc.default.svc.cluster.local:8000' ]  # FastAPI 서비스 메트릭 수집 대상
