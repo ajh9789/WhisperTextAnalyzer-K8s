@@ -242,19 +242,6 @@ persistentVolumeClaim:
   storage: 2Gi
   storageClassName: ""
 
-prometheus:
-  name: prometheus
-  image: prom/prometheus:latest
-  configMapName: prometheus-config
-  configFileName: prometheus.yml
-  containerPort: 9090
-
-grafana:
-  name: grafana
-  image: grafana/grafana:latest
-  containerPort: 3000
-
-
 ingress:
   enabled: true
   name: whisper-ingress
@@ -280,6 +267,23 @@ ingress:
                 port:
                   number: 80
 
+prometheus:
+  enabled: true
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: { }
+    additionalServiceMonitors:
+      - name: fastapi-monitor
+        selector:
+          matchLabels:
+            app: fastapi
+        namespaceSelector:
+          matchNames:
+            - default
+        endpoints:
+          - port: http
+            path: /metrics
+
 loki:
   enabled: true
 
@@ -297,6 +301,7 @@ promtail:
               labels:
                 job: fastapi
                 __path__: /var/log/containers/*fastapi*.log
+
 lokiStack:
   grafana:
-    enabled: false   # Loki Stack 내부 Grafana는 비활성화
+    enabled: true

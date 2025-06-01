@@ -1,3 +1,4 @@
+{{- if .Values.sttWorkerHPA.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -7,12 +8,13 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: stt-wkr-deploy
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: {{ .Values.sttWorkerHPA.minReplicas }}
+  maxReplicas: {{ .Values.sttWorkerHPA.maxReplicas }}
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 80  # 80% 넘으면 3개로 확장
+          averageUtilization: {{ .Values.sttWorkerHPA.targetCPUUtilizationPercentage }}
+{{- end }}

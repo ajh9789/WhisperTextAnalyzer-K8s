@@ -3,7 +3,6 @@ kind: ConfigMap
 metadata:
   name: whisper-config
 data:
-  REDIS_HOST: redis
-  MODEL_PATH: /app/models
-  MODEL_SIZE: tiny
-  DOCKER: "1"
+  {{- range $key, $value := .Values.whisperConfig }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

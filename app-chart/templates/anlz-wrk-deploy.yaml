@@ -1,33 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: anlz-wrk-deploy              # ← 디플로이 이름 (kubectl get deployment 시 출력됨)
+  name: anlz-wrk-deploy
 spec:
-  replicas: 1
+  replicas: {{ .Values.analyzer.replicas }}
   selector:
     matchLabels:
-      app: anlz-wrk           # ← 여기랑 ↓ template.metadata.labels.app 이랑 **반드시 일치해야 함**
+      app: anlz-wrk
   template:
     metadata:
       labels:
-        app: anlz-wrk         # ← Pod에 찍히는 라벨. selector랑 같아야 디플로이가 이 Pod 관리함
-        # ※ 여기 라벨이 실제 Pod에 붙는 라벨이 됨
+        app: anlz-wrk
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+        {{- toYaml .Values.analyzer.imagePullSecrets | nindent 8 }}
       containers:
-        - name: analyzer-worker      # ← 컨테이너 이름. Pod 안에서만 구분용 (kubectl describe pod 보면 나옴)
-          image: ghcr.io/ajh9789/analyzer_worker:latest
-          imagePullPolicy: Always
-          command: [ "celery" ]
-          args: [ "-A", "analyzer_worker", "worker", "-Q", "analyzer_queue", "--loglevel=info", "--concurrency=1","--pool=solo" ]
+        - name: analyzer-worker
+          image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
+          imagePullPolicy: {{ .Values.analyzer.image.pullPolicy }}
+          command: {{ toJson .Values.analyzer.command }}
+          args: {{ toJson .Values.analyzer.args }}
           envFrom:
-            - configMapRef:
-                name: whisper-config
-            - secretRef:
-                name: whisper-secret
+            {{- toYaml .Values.analyzer.envFrom | nindent 12 }}
           env:
-            - name: REDIS_HOST
-              value: redis
-            - name: DOCKER
-              value: "1"
+            {{- toYaml .Values.analyzer.env | nindent 12 }}

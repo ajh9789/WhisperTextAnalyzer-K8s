@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: stt-wkr-deploy
 spec:
-  replicas: 2
+  replicas: {{ .Values.sttWorker.replicas }}
   selector:
     matchLabels:
       app: stt-wkr
@@ -13,37 +13,23 @@ spec:
         app: stt-wkr
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+        {{- toYaml .Values.sttWorker.imagePullSecrets | nindent 8 }}
       containers:
         - name: stt-worker
-          image: ghcr.io/ajh9789/stt_worker:latest
-          resources:
-            requests:
-              cpu: 500m         # 0.5 코어
-              memory: 512Mi
-            limits:
-              cpu: 1000m        # 최대 1 코어
-              memory: 1536Mi
-          imagePullPolicy: Always
-          #커멘드
-          command: [ "celery" ]
-          args: [ "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue", "--concurrency=1","--pool=solo" ]
-          #환경설정
-          envFrom:
-            - configMapRef:
-                name: whisper-config
-            - secretRef:
-                name: whisper-secret
+          image: "{{ .Values.sttWorker.image.repository }}:{{ .Values.sttWorker.image.tag }}"
+          imagePullPolicy: {{ .Values.sttWorker.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.sttWorker.containerPort }}
+          command: {{ toJson .Values.sttWorker.command }}
+          args: {{ toJson .Values.sttWorker.args }}
           env:
-            - name: REDIS_HOST
-              value: redis
-            - name: DOCKER
-              value: "1"
-          #볼륨 붙이는곳
+            {{- toYaml .Values.sttWorker.env | nindent 12 }}
+          envFrom:
+            {{- toYaml .Values.sttWorker.envFrom | nindent 12 }}
+          resources:
+            {{- toYaml .Values.sttWorker.resources | nindent 12 }}
           volumeMounts:
-            - name: model-volume
-              mountPath: /app/models
-      volumes: #실제 볼륨
-        - name: model-volume
-          persistentVolumeClaim:
-            claimName: pvc-models
+                {{- toYaml .Values.sttWorker.volumeMounts | nindent 12 }}
+      volumes:
+        {{- toYaml .Values.sttWorker.volumes | nindent 8 }}
+

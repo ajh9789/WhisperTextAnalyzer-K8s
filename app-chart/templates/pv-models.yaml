@@ -1,11 +1,13 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: pv-models
+  name: {{ .Values.persistentVolume.name }}
 spec:
   capacity:
-    storage: 1Gi
+    storage: {{ .Values.persistentVolume.storage }}
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.persistentVolume.storageClassName | quote }}
   hostPath:
-    path: /data/models #로컬 경로 (minikube vm 내부)
+    path: {{ .Values.persistentVolume.path }}
