@@ -1,7 +1,7 @@
 apiVersion: v1                        # Service (Pod 접근용 프록시 역할)
 kind: Service
 metadata:
-  name: redis-svc                     # 다른 Pod에서 'redis-svc:6379'로 접근 가능
+  name: redis                    # 다른 Pod에서 'redis-svc:6379'로 접근 가능
 spec:
   selector:
     app: redis                        # Deployment에서 설정한 label과 반드시 일치해야 연결됨
