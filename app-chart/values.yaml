@@ -254,7 +254,12 @@ ingress:
   name: whisper-ingress
   className: nginx
   annotations:
+    cert-manager.io/cluster-issuer: "self-signed"
     nginx.ingress.kubernetes.io/rewrite-target: /
+  tls:
+    - hosts:
+        - local.fastapi.test
+      secretName: whisper-tls
   rules:
     - host: local.fastapi.test
       http:
@@ -280,6 +285,8 @@ ingress:
                 name: prometheus-operated
                 port:
                   number: 9090
+
+
 
 grafana:
   enabled: true
@@ -361,3 +368,12 @@ promtail:
               labels:
                 job: fastapi
                 __path__: /var/log/containers/*fastapi*.log
+
+namespace: cert-manager
+certManager:
+  issuerName: self-signed           # 원하는 issuer 이름
+  domain: local.fastapi.test        # 인증서에 등록할 도메인
+  secretName: whisper-tls           # 생성될 Secret 이름
+  duration: 2160h                   # 90일
+  renewBefore: 360h                 # 15일
+

@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: whisper-tls-cert
+  namespace: {{ .Values.namespace }}
+spec:
+  secretName: {{ .Values.certManager.secretName }}
+  issuerRef:
+    name: {{ .Values.certManager.issuerName }}
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.certManager.domain }}
+  duration: {{ .Values.certManager.duration | default "2160h" }}
+  renewBefore: {{ .Values.certManager.renewBefore | default "360h" }}
