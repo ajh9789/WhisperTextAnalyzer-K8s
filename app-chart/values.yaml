@@ -208,8 +208,8 @@ ingress:
         - local.fastapi.test
       secretName: whisper-tls
   rules:
-    - host: local.fastapi.test
-      http:
+    #- host: local.fastapi.test
+    - http:
         paths:
           - path: /fastapi
             pathType: Prefix
