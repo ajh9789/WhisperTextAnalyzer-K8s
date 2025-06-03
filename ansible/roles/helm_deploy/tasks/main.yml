@@ -1,0 +1,13 @@
+- name: Helm 설치 확인
+  command: helm version
+  register: helm_output
+  ignore_errors: yes
+
+- name: Helm 설치 안 되어 있으면 설치
+  shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  when: helm_output.rc != 0
+
+- name: Chart 배포
+  command: helm upgrade --install myrelease ./app-chart -n default
+  args:
+    chdir: "{{ playbook_dir }}/roles/helm_deploy/files"

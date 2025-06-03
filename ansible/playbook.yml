@@ -1,0 +1,5 @@
+- name: Whisper Helm Chart 배포
+  hosts: all         # 또는 inventory에 정의한 그룹 이름[k8s]이걸로 역할나눠서 분배가능 
+  become: true
+  roles:
+    - helm_deploy
