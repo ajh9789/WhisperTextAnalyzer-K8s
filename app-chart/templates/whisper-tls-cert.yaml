@@ -2,9 +2,9 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: whisper-tls-cert
-  namespace: {{ .Values.namespace }}
 spec:
   secretName: {{ .Values.certManager.secretName }}
+  namespace: {{ .Release.Namespace }}
   issuerRef:
     name: {{ .Values.certManager.issuerName }}
     kind: ClusterIssuer
