@@ -309,6 +309,7 @@ grafana:
           type: loki
           access: proxy
           url: http://loki.default.svc.cluster.local:3100
+          isDefault: false  # 명시 안해서 그라파다 포드하나죽음
   # 대시보드 로딩용 provider 설정
   dashboardProviders:
     dashboardproviders.yaml:
