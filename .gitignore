@@ -20,6 +20,8 @@ venv/
 ENV/
 env/
 .venv/
+#wsl용
+ansible-env/
 
 # OS files
 .DS_Store
