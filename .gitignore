@@ -49,3 +49,7 @@ desktop.ini
 *.bak
 *.tmp
 STUDYME/
+
+
+# VSCode 
+.vscode/
