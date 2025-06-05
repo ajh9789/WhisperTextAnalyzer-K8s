@@ -1,5 +1,9 @@
-- name: Whisper Helm Chart 배포
-  hosts: all         # 또는 inventory에 정의한 그룹 이름[k8s]이걸로 역할나눠서 분배가능 
-  become: true
+- name: Whisper Helm Chart 배포  # 이 play의 이름 (로그에 출력됨)
+  hosts: k8s                     # 대상 호스트 그룹 이름 (inventory의 [k8s] 참조)
+  become: true                   # 일반 사용자 → root 권한 상승 (sudo 수행 허용)
+  become_user: root              # 어떤 사용자 권한으로 바꿀지 (보통 root)
+  become_method: sudo            # 권한 상승 방법 (sudo, su 등 중 선택. 기본은 sudo)
+  gather_facts: false            # 서버 시스템 정보 수집 비활성화 (빠른 실행을 원할 때 꺼둠)
+
   roles:
-    - helm_deploy
+    - helm_deploy                # 이 play에서 실행할 역할 (roles/helm_deploy/tasks/main.yml 수행됨)

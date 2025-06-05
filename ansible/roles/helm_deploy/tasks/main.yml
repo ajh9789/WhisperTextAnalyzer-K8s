@@ -1,13 +1,17 @@
-- name: Helm 설치 확인
-  command: helm version
-  register: helm_output
-  ignore_errors: yes
+- name: Helm 설치 여부 확인
+  command: helm version   # Helm 설치 여부 확인
+  register: helm_output   # 결과를 helm_output 변수에 저장
+  changed_when: false     # 이 작업은 상태 변경으로 간주하지 않음 (Always OK)
+  failed_when: false      # Helm이 없어서 실패해도 에러로 처리하지 않음
+  become: true            # sudo 권한으로 실행 (중요)
 
-- name: Helm 설치 안 되어 있으면 설치
+- name: Helm 설치 안 되어 있으면 설치 # Helm이 없을 때만 실행
   shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-  when: helm_output.rc != 0
+  when: helm_output.rc is defined and helm_output.rc != 0   
+  become: true  # 설치 명령은 sudo 필요
 
-- name: Chart 배포
-  command: helm upgrade --install myrelease ./app-chart -n default
-  args:
-    chdir: "{{ playbook_dir }}/roles/helm_deploy/files"
+- name: Helm Chart 배포     # Helm Chart 설치 또는 업그레이드
+  command: helm upgrade --install myrelease ./app-chart -n default 
+  args:    # Chart가 위치한 디렉토리로 이동
+    chdir: "{{ playbook_dir }}/roles/helm_deploy/files/app-chart"   
+  become: true   # 배포도 root 권한 필요                                     
