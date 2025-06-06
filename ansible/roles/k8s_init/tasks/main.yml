@@ -30,21 +30,28 @@
     state: restarted                          # 즉시 재시작
     enabled: yes                              # 부팅 시 자동 실행 설정
 
-- name: GPG 키 다운로드 및 저장 # No package matching 'kubelet' is available 오류 방지 3개
+- name: GPG 키 디렉토리 생성
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: GPG 키 다운로드 및 저장 (kubernetes용)
   ansible.builtin.get_url:
     url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
     dest: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
     mode: '0644'
 
-- name: K8s apt 저장소 추가
+- name: Kubernetes apt 저장소 추가
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main"
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes main"
     filename: kubernetes
     state: present
 
-- name: apt 패키지 인덱스 갱신
+- name: APT 패키지 인덱스 강제 갱신
   ansible.builtin.apt:
     update_cache: yes
+    cache_valid_time: 0
 
 - name: kubeadm/kubelet/kubectl 설치  # 쿠버네티스 설치 도구 3종 설치
   apt:
