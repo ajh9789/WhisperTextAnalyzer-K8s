@@ -10,8 +10,20 @@
   when: helm_output.rc is defined and helm_output.rc != 0   
   become: true  # 설치 명령은 sudo 필요
 
+- name: Helm Chart 디렉토리 복사          # 이 작업의 이름 (로그에 출력됨)
+
+  copy:                                    # Ansible의 copy 모듈 사용 (로컬 파일/디렉토리를 복사)
+    src: roles/helm_deploy/files/app-chart # 복사할 소스 디렉토리 (로컬 기준 경로)
+    dest: /tmp/app-chart                   # 원격 서버에서 복사될 목적지 경로
+    mode: '0755'                           # 디렉토리 권한 설정 (소유자 rwx, 그룹/기타 rx)
+
+  delegate_to: localhost                   # 이 작업은 원격지가 아닌 로컬(Ansible 실행 머신)에서 수행
+  run_once: true                           # 여러 호스트가 있어도 이 작업은 한 번만 수행
+  become: false                            # sudo 권한 없이 실행 (로컬에서 sudo 시 비번 요구되므로 false로 설정)
+
+
 - name: Helm Chart 배포     # Helm Chart 설치 또는 업그레이드
   command: helm upgrade --install myrelease ./app-chart -n default 
   args:    # Chart가 위치한 디렉토리로 이동
-    chdir: "{{ playbook_dir }}/roles/helm_deploy/files/app-chart"   
+    chdir: /tmp/app-chart  
   become: true   # 배포도 root 권한 필요                                     
