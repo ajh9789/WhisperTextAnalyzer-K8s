@@ -30,25 +30,26 @@
     state: restarted                          # 즉시 재시작
     enabled: yes                              # 부팅 시 자동 실행 설정
 
-- name: GPG 키 디렉토리 생성
-  ansible.builtin.file:
+- name: GPG 키 저장 디렉토리 생성  # GPG 키를 보관할 /etc/apt/keyrings 디렉토리 생성
+  file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
-- name: GPG 키 다운로드 및 저장 (kubernetes용)
-  ansible.builtin.get_url:
-    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
-    dest: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
-    mode: '0644'
+- name: GPG 키 다운로드 및 dearmor 변환  # 키를 바이너리로 변환하여 APT에 등록 가능한 형식으로 저장
+  shell: |
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
 
-- name: Kubernetes apt 저장소 추가
-  ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes main"
-    filename: kubernetes
-    state: present
+- name: Kubernetes APT 저장소 추가 (Ubuntu 22.04 대응)  # Kubernetes 공식 저장소 (v1.33) 등록
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+  args:
+    creates: /etc/apt/sources.list.d/kubernetes.list
 
-- name: APT 패키지 인덱스 강제 갱신
+- name: APT 패키지 인덱스 강제 갱신  # 새로운 저장소 반영을 위해 패키지 목록 갱신
   ansible.builtin.apt:
     update_cache: yes
     cache_valid_time: 0
@@ -67,6 +68,15 @@
   args:
     creates: /etc/kubernetes/admin.conf       # 이미 초기화된 경우 재실행 방지
 
+
+- name: .kube 디렉토리 생성  # kubectl 설정 파일을 위한 사용자 디렉토리 생성
+  file:
+    path: /home/{{ ansible_user }}/.kube
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+    
 - name: admin.conf 복사  # kubectl 사용을 위한 kubeconfig 복사
   copy:
     src: /etc/kubernetes/admin.conf           # 마스터 초기화 시 생성되는 인증 파일
@@ -76,8 +86,22 @@
     group: "{{ ansible_user }}"                # 파일 그룹 설정
     mode: '0644'                              # 읽기 권한 설정
 
-- name: Flannel CNI 설치  # Pod 간 네트워크 통신을 위한 CNI 플러그인 설치
-  command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+- name: Flannel CNI 설치 (API 서버 대기)  # API 서버가 준비될 때까지 재시도하며 Flannel 설치
+  #간단버전 command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml --validate=false
+  shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml --validate=false  # schema 검증 생략으로 연결 오류 우회
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # 복사된 admin.conf 경로
+  register: flannel_result  # 실행 결과 (리턴 코드 등)를 flannel_result 변수에 저장
+  retries: 5                # 최대 5번까지 재시도
+  delay: 10                 # 재시도 간 10초 대기
+  until: flannel_result.rc == 0  # 리턴 코드가 0일 때까지 반복 (0이면 성공)
 
-- name: master 노드 taint 제거  # 단일 노드에서도 워크로드를 배포할 수 있도록 taint 제거
-  command: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+- name: master 노드 taint 제거 (조건적 실행)  # 마스터 노드의 taint가 존재할 때만 제거하는 안전한 방식
+  shell: |
+    if kubectl describe node $(hostname) | grep -q 'node-role.kubernetes.io/control-plane'; then  # 현재 노드에 해당 taint가 있을 경우에만
+      kubectl taint nodes $(hostname) node-role.kubernetes.io/control-plane-;  # taint 제거 (단일 노드에서도 워크로드 스케줄링 허용)
+    fi
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # kubectl이 사용할 인증 파일 경로 지정 (해당 사용자 기준)
+  changed_when: false  # 항상 상태 변경이 없다고 간주 (idempotent 처리용)
+  failed_when: false   # taint가 없거나 제거 실패해도 전체 플레이 실패로 간주하지 않음 (안정성 확보)
