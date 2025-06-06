@@ -38,7 +38,7 @@
 
 - name: K8s apt 저장소 추가
   ansible.builtin.apt_repository:
-    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main"
     filename: kubernetes
     state: present
 
