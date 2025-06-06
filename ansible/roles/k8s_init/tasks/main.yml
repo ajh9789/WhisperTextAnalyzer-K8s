@@ -1,0 +1,76 @@
+- name: Docker 설치  # Docker 및 containerd 관련 패키지 설치
+  apt:
+    name: "{{ item }}"  # 설치할 패키지 이름 (반복문으로 처리)
+    state: present       # 해당 패키지를 설치 상태로 유지
+  loop:
+    - docker.io          # Docker 엔진 (컨테이너 실행 도구)
+    - containerd         # 컨테이너 런타임 (K8s에서 권장되는 런타임)
+    - apt-transport-https  # HTTPS를 통한 APT 저장소 접근 허용
+    - ca-certificates    # TLS 인증서 설치 및 신뢰
+    - curl               # URL 기반 파일 다운로드 툴
+    - gnupg              # GPG 키 관리 도구 (저장소 인증용)
+    - lsb-release        # 배포판 버전 확인 (저장소 설정에 필요)
+
+- name: containerd 설정 파일 생성  # containerd의 설정 파일을 기본값으로 생성
+  shell: |
+    mkdir -p /etc/containerd                  # 설정 디렉토리 생성
+    containerd config default > /etc/containerd/config.toml  # 기본 설정 덤프
+  args:
+    creates: /etc/containerd/config.toml      # 설정 파일이 없을 때만 실행
+
+- name: containerd systemd 설정 (SystemdCgroup = true)  # systemd를 cgroup 드라이버로 사용
+  replace:
+    path: /etc/containerd/config.toml         # 설정 파일 경로
+    regexp: 'SystemdCgroup = false'           # 기본값을 찾아서
+    replace: 'SystemdCgroup = true'           # systemd 기반으로 변경 (kubeadm 요구사항)
+
+- name: containerd 재시작  # 설정 변경을 반영하기 위한 재시작 및 자동시작 설정
+  systemd:
+    name: containerd                          # 대상 서비스 이름
+    state: restarted                          # 즉시 재시작
+    enabled: yes                              # 부팅 시 자동 실행 설정
+
+- name: GPG 키 다운로드 및 저장 # No package matching 'kubelet' is available 오류 방지 3개
+  ansible.builtin.get_url:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    dest: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+    mode: '0644'
+
+- name: K8s apt 저장소 추가
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main
+    filename: kubernetes
+    state: present
+
+- name: apt 패키지 인덱스 갱신
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: kubeadm/kubelet/kubectl 설치  # 쿠버네티스 설치 도구 3종 설치
+  apt:
+    name:
+      - kubelet       # 노드 에이전트 (Pod 실행 및 상태 보고)
+      - kubeadm       # 클러스터 초기화 및 조인 도구
+      - kubectl       # 클러스터 제어 CLI 도구
+    state: present
+    update_cache: yes  # APT 캐시 갱신
+
+- name: kubeadm init 실행  # 마스터 노드에서 클러스터 초기화 실행
+  shell: kubeadm init --pod-network-cidr=10.244.0.0/16  # Flannel에 필요한 Pod CIDR 설정
+  args:
+    creates: /etc/kubernetes/admin.conf       # 이미 초기화된 경우 재실행 방지
+
+- name: admin.conf 복사  # kubectl 사용을 위한 kubeconfig 복사
+  copy:
+    src: /etc/kubernetes/admin.conf           # 마스터 초기화 시 생성되는 인증 파일
+    dest: /home/{{ ansible_user }}/.kube/config  # 일반 사용자 홈 디렉토리로 복사
+    remote_src: yes                           # 원격 경로에서 복사
+    owner: "{{ ansible_user }}"                # 파일 소유자 설정
+    group: "{{ ansible_user }}"                # 파일 그룹 설정
+    mode: '0644'                              # 읽기 권한 설정
+
+- name: Flannel CNI 설치  # Pod 간 네트워크 통신을 위한 CNI 플러그인 설치
+  command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+- name: master 노드 taint 제거  # 단일 노드에서도 워크로드를 배포할 수 있도록 taint 제거
+  command: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
