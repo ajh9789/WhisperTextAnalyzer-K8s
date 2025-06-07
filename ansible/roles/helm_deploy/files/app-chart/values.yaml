@@ -151,6 +151,10 @@ sttWorker:
       value: redis
     - name: DOCKER
       value: "1"
+    - name: MODEL_PATH
+      value: /app/models
+    - name: MODEL_SIZE
+      value: medium  # 또는 tiny, small, medium
   envFrom:
     - configMapRef:
         name: whisper-config
@@ -162,16 +166,9 @@ sttWorker:
       memory: 512Mi
     limits:
       cpu: 1000m
-      memory: 1536Mi
+      memory: 3072Mi
   imagePullSecrets:
     - name: ghcr-secret
-  volumeMounts:
-    - name: model-volume
-      mountPath: /app/models
-  volumes:
-    - name: model-volume
-      persistentVolumeClaim:
-        claimName: pvc-models
 
 sttWorkerHPA:
   enabled: true
@@ -182,7 +179,7 @@ sttWorkerHPA:
 whisperConfig:
   REDIS_HOST: redis
   MODEL_PATH: /app/models
-  MODEL_SIZE: tiny
+  MODEL_SIZE: medium
   DOCKER: "1"
 
 persistentVolume:

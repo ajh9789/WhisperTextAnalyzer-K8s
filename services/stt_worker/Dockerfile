@@ -1,9 +1,31 @@
 FROM python:3.10-slim
 
-WORKDIR /app
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
-RUN pip install --upgrade pip
+# 시스템 패키지 설치 (whisper.cpp 빌드 및 모델 다운로드용)
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 패키지 설치
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["celery", "-A", "stt_worker:celery", "worker", "-Q", "stt_queue", "--loglevel=info", "--concurrency=1","--pool=solo"]
+
+# whisper.cpp 소스 다운로드 및 빌드
+WORKDIR /app
+RUN git clone https://github.com/ggerganov/whisper.cpp.git
+WORKDIR /app/whisper.cpp
+RUN make
+
+# medium 모델 다운로드 (약 1.5GB)
+WORKDIR /app
+RUN mkdir -p /app/models && \
+    curl -L -o /app/models/ggml-medium.bin \
+    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+
+# 애플리케이션 코드 복사
+COPY . /app
+
+# Celery 워커 실행 (STT 전용)
+CMD ["celery", "-A", "stt_worker", "worker", "--loglevel=info", "-Q", "stt_queue"]

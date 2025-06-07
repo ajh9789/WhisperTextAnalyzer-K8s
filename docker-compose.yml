@@ -38,11 +38,11 @@ services:
       - redis
     restart: always
     command: uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
-# ✅ 리눅스 배포 시 실행 명령어 예시
+# 리눅스 배포 시 실행 명령어 예시
 # docker-compose up --scale stt_worker=2 -d
 
 # ==========================
-# ✅ 설명
+#  설명
 # - 배포 시 컨테이너 개수 조절 (--scale)
 # - 윈도우용 --concurrency=1 --pool=solo
 # - wsl2 기반 우분투 조차 --poll=sole 안하면 버그 발생
