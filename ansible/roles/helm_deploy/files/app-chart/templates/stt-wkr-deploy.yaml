@@ -12,8 +12,6 @@ spec:
       labels:
         app: stt-wkr
     spec:
-      imagePullSecrets:
-        {{- toYaml .Values.sttWorker.imagePullSecrets | nindent 8 }}
       containers:
         - name: stt-worker
           image: "{{ .Values.sttWorker.image.repository }}:{{ .Values.sttWorker.image.tag }}"

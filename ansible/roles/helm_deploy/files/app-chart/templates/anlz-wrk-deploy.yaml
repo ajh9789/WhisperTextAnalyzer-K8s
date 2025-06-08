@@ -12,8 +12,6 @@ spec:
       labels:
         app: anlz-wrk
     spec:
-      imagePullSecrets:
-        {{- toYaml .Values.analyzer.imagePullSecrets | nindent 8 }}
       containers:
         - name: analyzer-worker
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
