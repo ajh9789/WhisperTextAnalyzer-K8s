@@ -191,8 +191,14 @@ ingress:
   name: whisper-ingress
   className: nginx
   annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    nginx.ingress.kubernetes.io/upgrade: "websocket"
     cert-manager.io/cluster-issuer: "self-signed"
-    nginx.ingress.kubernetes.io/rewrite-target: /
   tls:
     - hosts:
         - local.fastapi.test
@@ -201,7 +207,14 @@ ingress:
     - host: local.fastapi.test
       http:
         paths:
-          - path: /fastapi
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fastapi-svc
+                port:
+                  number: 8000
+          - path: /ws
             pathType: Prefix
             backend:
               service:
@@ -215,16 +228,7 @@ ingress:
                 name: monitoring-grafana
                 port:
                   number: 80
-          - path: /prometheus
-            pathType: Prefix
-            backend:
-              service:
-                name: prometheus-operated
-                port:
-                  number: 9090
-
-
-
+                  
 grafana:
   enabled: true
   adminUser: admin

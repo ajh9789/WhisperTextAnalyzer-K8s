@@ -4,11 +4,24 @@ kind: Ingress
 metadata:
   name: {{ .Values.ingress.name }}
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+{{- toYaml .Values.ingress.annotations | nindent 4 }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   tls:
-    {{- toYaml .Values.ingress.tls | nindent 4 }}
+{{- toYaml .Values.ingress.tls | nindent 4 }}
   rules:
-    {{- toYaml .Values.ingress.rules | nindent 4 }}
+{{- range .Values.ingress.rules }}
+    - host: {{ .host }}
+      http:
+        paths:
+{{- range .http.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ .backend.service.name }}
+                port:
+                  number: {{ .backend.service.port.number }}
+{{- end }}
+{{- end }}
 {{- end }}
