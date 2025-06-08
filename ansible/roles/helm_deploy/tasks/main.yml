@@ -80,26 +80,6 @@
   changed_when: "'ingress-nginx' in ingress_repo_add.stdout"
   become: true
 
-- name: prometheus-community Helm repo 추가
-  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-  args:
-    creates: /etc/kubernetes/.prometheus-repo-added
-  register: prometheus_repo_add
-  changed_when: "'prometheus-community' in prometheus_repo_add.stdout"
-  become: true
-
-- name: grafana Helm repo 추가
-  command: helm repo add grafana https://grafana.github.io/helm-charts
-  args:
-    creates: /etc/kubernetes/.grafana-repo-added
-  register: grafana_repo_add
-  changed_when: "'grafana' in grafana_repo_add.stdout"
-  become: true
-
-- name: Helm repo 업데이트
-  command: helm repo update
-  become: true
-
 - name: ingress-nginx 설치 (로컬용 NodePort 설정)
   command: >
     helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
@@ -108,23 +88,6 @@
     --set controller.service.type=NodePort
     --set controller.service.nodePorts.http=30080
     --set controller.service.nodePorts.https=30443
-  environment:
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
-  become: true
-
-- name: kube-prometheus-stack 설치
-  command: >
-    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
-    --namespace monitoring
-    --create-namespace
-  environment:
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
-  become: true
-
-- name: loki-stack 설치
-  command: >
-    helm upgrade --install loki grafana/loki-stack
-    --namespace monitoring
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
@@ -176,3 +139,45 @@
   become: true   # 배포도 root 권한 필요                                     
   environment:  # Helm이 연결할 Kubernetes 클러스터의 인증 정보를 명확히 지정
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+
+# 모니터링 앱들 설치 및 value 적용
+- name: prometheus-community Helm repo 추가
+  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  args:
+    creates: /etc/kubernetes/.prometheus-repo-added
+  register: prometheus_repo_add
+  changed_when: "'prometheus-community' in prometheus_repo_add.stdout"
+  become: true
+
+- name: grafana Helm repo 추가
+  command: helm repo add grafana https://grafana.github.io/helm-charts
+  args:
+    creates: /etc/kubernetes/.grafana-repo-added
+  register: grafana_repo_add
+  changed_when: "'grafana' in grafana_repo_add.stdout"
+  become: true
+
+- name: Helm repo 업데이트
+  command: helm repo update
+  become: true
+
+- name: loki-stack 설치 (value 포함)
+  command: >
+    helm upgrade --install loki grafana/loki-stack
+    -n monitoring
+    --create-namespace
+    -f /tmp/app-chart/loki-values.yaml
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
+
+- name: kube-prometheus-stack 설치 (value 포함)
+  command: >
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
+    -n monitoring
+    --create-namespace
+    -f /tmp/app-chart/grafana-values.yaml
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
+
