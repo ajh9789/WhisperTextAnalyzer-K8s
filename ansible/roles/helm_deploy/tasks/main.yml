@@ -68,6 +68,14 @@
   become: true                               # root 권한으로 복사 수행 (권한 오류 방지)
   register: helm_chart_copy                  # 복사 작업 결과를 helm_chart_copy 변수에 저장
 
+- name: Ensure /etc/ansible/facts.d exists  # facts.d 디렉토리가 존재하는지 확인하고 없으면 생성함
+  file:
+    path: /etc/ansible/facts.d              # 생성할 디렉토리 경로 (Ansible custom facts 저장 위치)
+    state: directory                        # 디렉토리 형태로 만들겠다는 의미 (파일이 아님)
+    owner: root                             # 디렉토리 소유자를 root 사용자로 설정
+    group: root                             # 디렉토리 소유 그룹을 root 그룹으로 설정
+    mode: '0755'                            # 퍼미션 설정: rwxr-xr-x (소유자는 읽기/쓰기/실행, 그 외는 읽기/실행)
+
 - name: 체크포인트 저장 (복사 완료 상태 기록)  # Helm Chart 복사가 처음 완료되었을 때 상태를 기록
   copy:
     content: '{"done": true}'                 # 커스텀 fact 파일 내용 (JSON 형식)
