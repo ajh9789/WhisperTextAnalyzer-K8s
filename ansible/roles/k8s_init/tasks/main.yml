@@ -24,6 +24,29 @@
     regexp: 'SystemdCgroup = false'           # 기본값을 찾아서
     replace: 'SystemdCgroup = true'           # systemd 기반으로 변경 (kubeadm 요구사항)
 
+- name: br_netfilter 커널 모듈 로드  # (1단계) 현재 커널에 br_netfilter 모듈을 즉시 로드하여 브릿지 인터페이스를 통한 iptables 적용을 가능하게 함
+  shell: modprobe br_netfilter        # shell 명령어로 직접 로드 (Ansible에 modprobe 공식 모듈 없음)
+
+- name: br_netfilter 모듈 영구 설정  # (2단계) 재부팅 시에도 br_netfilter 모듈이 자동 로드되도록 설정
+  copy:
+    dest: /etc/modules-load.d/br_netfilter.conf  # 시스템 부팅 시 자동으로 모듈을 로드할 수 있도록 설정 파일 생성
+    content: "br_netfilter\n"                    # 단일 줄로 모듈 이름 입력 (다른 내용 필요 없음)
+
+- name: sysctl 설정 - bridge-nf-call-iptables  # (3단계) 브릿지 네트워크 트래픽에 iptables 적용 허용
+  sysctl:
+    name: net.bridge.bridge-nf-call-iptables         # IPv4 트래픽이 bridge 인터페이스를 통해 전달될 때 iptables 정책이 적용되도록 설정
+    value: "1"                                       # 1로 설정하면 해당 커널 파라미터 활성화됨
+    state: present                                   # 현재 커널 설정 상태로 유지 (이미 설정돼 있어도 적용 시도)
+    reload: yes                                      # 설정 변경 사항을 즉시 시스템에 반영 (sysctl -p 없이 적용)
+
+- name: sysctl 설정 - bridge-nf-call-ip6tables  # (3-1단계) 브릿지 네트워크 트래픽에 ip6tables 적용 허용 (IPv6)
+  sysctl:
+    name: net.bridge.bridge-nf-call-ip6tables        # IPv6 트래픽이 bridge 인터페이스를 통해 전달될 때 ip6tables 정책이 적용되도록 설정
+    value: "1"                                       # 1로 설정하면 해당 커널 파라미터 활성화됨
+    state: present                                   # 현재 커널 설정 상태로 유지 (이미 설정돼 있어도 적용 시도)
+    reload: yes                                      # 설정 변경 사항을 즉시 시스템에 반영 (sysctl -p 없이 적용)
+
+
 - name: containerd 재시작  # 설정 변경을 반영하기 위한 재시작 및 자동시작 설정
   systemd:
     name: containerd                          # 대상 서비스 이름
@@ -95,6 +118,16 @@
   retries: 5                # 최대 5번까지 재시도
   delay: 10                 # 재시도 간 10초 대기
   until: flannel_result.rc == 0  # 리턴 코드가 0일 때까지 반복 (0이면 성공)
+
+- name: Flannel DaemonSet 상태 확인 (Running 될 때까지 대기)  # Flannel Pod가 정상적으로 실행(Running)될 때까지 반복 확인
+  shell: |
+    kubectl get pods -n kube-flannel -l app=flannel --field-selector=status.phase=Running | grep flannel  # 실행 중인 flannel 파드가 있는지 확인
+  register: flannel_pod_status  # 명령 결과를 변수에 저장 (rc, stdout 등)
+  retries: 10                   # 최대 10번까지 재시도
+  delay: 5                      # 각 재시도 사이에 5초 대기
+  until: flannel_pod_status.rc == 0  # 명령이 성공(rc=0)할 때까지 반복 (성공 조건: Running 상태인 flannel 파드가 존재)
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # kubectl 인증을 위한 kubeconfig 경로 지정 (사용자 홈 기준)
 
 - name: master 노드 taint 제거 (조건적 실행)  # 마스터 노드의 taint가 존재할 때만 제거하는 안전한 방식
   shell: |
