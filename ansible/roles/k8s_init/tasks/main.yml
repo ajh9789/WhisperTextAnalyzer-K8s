@@ -91,7 +91,6 @@
   args:
     creates: /etc/kubernetes/admin.conf       # 이미 초기화된 경우 재실행 방지
 
-
 - name: .kube 디렉토리 생성  # kubectl 설정 파일을 위한 사용자 디렉토리 생성
   file:
     path: /home/{{ ansible_user }}/.kube
@@ -128,6 +127,17 @@
   until: flannel_pod_status.rc == 0  # 명령이 성공(rc=0)할 때까지 반복 (성공 조건: Running 상태인 flannel 파드가 존재)
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # kubectl 인증을 위한 kubeconfig 경로 지정 (사용자 홈 기준)
+
+- name: CoreDNS ConfigMap patch - 외부 DNS 서버 명시 (8.8.8.8, 1.1.1.1)
+  shell: |
+    kubectl patch configmap coredns -n kube-system --type merge -p '{"data":{"Corefile":".:53 {\n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . 8.8.8.8 1.1.1.1 {\n       max_concurrent 1000\n    }\n    cache 30 {\n       disable success cluster.local\n       disable denial cluster.local\n    }\n    loop\n    reload\n    loadbalance\n}"}}'
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+
+- name: CoreDNS 재시작
+  shell: kubectl rollout restart deployment coredns -n kube-system
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
 
 - name: master 노드 taint 제거 (조건적 실행)  # 마스터 노드의 taint가 존재할 때만 제거하는 안전한 방식
   shell: |
