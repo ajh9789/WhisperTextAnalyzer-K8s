@@ -58,6 +58,54 @@
   when: cert_helm_result is changed
   become: true
 
+- name: ingress-nginx Helm repo 추가
+  command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+  args:
+    creates: /etc/kubernetes/.ingress-nginx-repo-added
+  register: ingress_repo_add
+  changed_when: "'ingress-nginx' in ingress_repo_add.stdout"
+  become: true
+
+- name: prometheus-community Helm repo 추가
+  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  args:
+    creates: /etc/kubernetes/.prometheus-repo-added
+  register: prometheus_repo_add
+  changed_when: "'prometheus-community' in prometheus_repo_add.stdout"
+  become: true
+
+- name: grafana Helm repo 추가
+  command: helm repo add grafana https://grafana.github.io/helm-charts
+  args:
+    creates: /etc/kubernetes/.grafana-repo-added
+  register: grafana_repo_add
+  changed_when: "'grafana' in grafana_repo_add.stdout"
+  become: true
+
+- name: Helm repo 업데이트
+  command: helm repo update
+  become: true
+
+- name: ingress-nginx 설치
+  command: >
+    helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
+    --namespace ingress-nginx
+    --create-namespace
+  become: true
+
+- name: kube-prometheus-stack 설치
+  command: >
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
+    --namespace monitoring
+    --create-namespace
+  become: true
+
+- name: loki-stack 설치
+  command: >
+    helm upgrade --install loki grafana/loki-stack
+    --namespace monitoring
+  become: true
+
 - name: Helm Chart 디렉토리 복사  # Helm 차트를 원격 서버의 /tmp 경로로 복사
   copy:
     src: roles/helm_deploy/files/app-chart   # 복사할 로컬 디렉토리 (플레이북 기준 상대 경로)
