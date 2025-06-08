@@ -76,7 +76,7 @@
   ansible.builtin.apt:
     update_cache: yes
     cache_valid_time: 0
-
+    
 - name: kubeadm/kubelet/kubectl 설치  # 쿠버네티스 설치 도구 3종 설치
   apt:
     name:
@@ -117,6 +117,14 @@
   retries: 5                # 최대 5번까지 재시도
   delay: 10                 # 재시도 간 10초 대기
   until: flannel_result.rc == 0  # 리턴 코드가 0일 때까지 반복 (0이면 성공)
+
+- name: Flannel Pod가 Running 상태가 될 때까지 대기  # Flannel이 설치된 후, Pod가 Ready 상태가 될 때까지 기다림
+  shell: |
+    kubectl wait --for=condition=Ready pods -l app=flannel -n kube-flannel --timeout=60s  # kube-flannel 네임스페이스의 flannel 파드가 Ready 상태가 될 때까지 최대 60초 대기
+  register: flannel_ready  # 명령 실행 결과를 flannel_ready 변수에 저장
+  failed_when: flannel_ready.rc != 0  # 명령의 반환 코드가 0이 아니면 실패로 간주 (예: 시간 초과)
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # kubectl 인증을 위한 kubeconfig 경로 지정
 
 - name: Flannel DaemonSet 상태 확인 (Running 될 때까지 대기)  # Flannel Pod가 정상적으로 실행(Running)될 때까지 반복 확인
   shell: |
