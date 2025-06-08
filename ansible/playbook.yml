@@ -39,6 +39,8 @@
   become_user: root              # 어떤 사용자 권한으로 바꿀지 (보통 root)
   become_method: sudo            # 권한 상승 방법 (sudo, su 등 중 선택. 기본은 sudo)
   gather_facts: false            # 서버 시스템 정보 수집 비활성화 (빠른 실행을 원할 때 꺼둠)
+  environment:  # 반복해서 안적어두됨... 몰라서 다적음
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   tasks: #task 속의 task 방식으로 role 실행
     - name: kubeadm init 완료 여부 확인 (admin.conf 존재 확인)
       stat:
