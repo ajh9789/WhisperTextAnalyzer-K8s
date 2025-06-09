@@ -161,23 +161,29 @@
   command: helm repo update
   become: true
 
-- name: loki-stack 설치 (value 포함)
+- name: loki-stack 설치 (default 네임스페이스)
   command: >
     helm upgrade --install loki grafana/loki-stack
-    -n monitoring
+    -n default
     --create-namespace
     -f /tmp/app-chart/loki-values.yaml
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-- name: kube-prometheus-stack 설치 (value 포함)
+- name: Grafana ConfigMap 생성 (kubectl apply, default 네임스페이스)
+  shell: |
+    kubectl apply -f /tmp/app-chart/templates/grafana-dashboards.yaml -n default
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
+
+- name: kube-prometheus-stack 설치 (default 네임스페이스)
   command: >
     helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
-    -n monitoring
+    -n default
     --create-namespace
     -f /tmp/app-chart/grafana-values.yaml
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
-

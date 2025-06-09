@@ -3,6 +3,9 @@ loki:
 
 grafana:
   enabled: false
+  sidecar:
+    datasources:
+      enabled: false
 
 prometheus:
   enabled: false
