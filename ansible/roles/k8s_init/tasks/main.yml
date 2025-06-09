@@ -1,3 +1,17 @@
+- name: python3-pip 및 kubernetes 모듈 설치  # Ansible k8s 모듈 동작을 위한 Python 환경 세팅
+  apt:
+    name:
+      - python3-pip         # pip 설치 (Ubuntu 22.04 기준)
+    state: present
+    update_cache: yes
+
+- name: kubernetes, openshift 파이썬 패키지 설치  # k8s 모듈이 원격에서 작동하려면 해당 패키지 필수
+  pip:
+    name:
+      - kubernetes
+      - openshift
+    executable: pip3        # python3용 pip 명시
+
 - name: Docker 설치  # Docker 및 containerd 관련 패키지 설치
   apt:
     name: "{{ item }}"  # 설치할 패키지 이름 (반복문으로 처리)
