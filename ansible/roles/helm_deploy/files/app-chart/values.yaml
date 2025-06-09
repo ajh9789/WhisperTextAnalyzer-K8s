@@ -133,7 +133,7 @@ analyzer:
 
 
 sttWorker:
-  replicas: 2
+  replicas: 1
   image:
     repository: ghcr.io/ajh9789/stt_worker
     tag: latest
@@ -194,17 +194,20 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
     nginx.ingress.kubernetes.io/upgrade: "websocket"
+    nginx.ingress.kubernetes.io/connection: "upgrade"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     cert-manager.io/cluster-issuer: "self-signed"
+
   tls:
     - hosts:
-        - local.fastapi.test
+        - 192-168-50-115.nip.io
       secretName: whisper-tls
+
   rules:
-    - host: local.fastapi.test
+    - host: 192-168-50-115.nip.io
       http:
         paths:
           - path: /ws
@@ -230,13 +233,7 @@ ingress:
                 name: fastapi-svc
                 port:
                   number: 8000
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: fastapi-svc
-                port:
-                  number: 8000
+
           - path: /grafana
             pathType: Prefix
             backend:
@@ -244,24 +241,38 @@ ingress:
                 name: monitoring-grafana
                 port:
                   number: 80
+
           - path: /prometheus
             pathType: Prefix
             backend:
               service:
-                name: monitoring-kube-prometheus-prometheus
+                name: prometheus-operated
                 port:
                   number: 9090
+
           - path: /alertmanager
             pathType: Prefix
             backend:
               service:
-                name: monitoring-kube-prometheus-alertmanager
+                name: alertmanager-operated
                 port:
-                  number: 9093                  
+                  number: 9093
+
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fastapi-svc
+                port:
+                  number: 8000
+
+issuer:
+  enabled: true      # 한 번만 true로 해서 재생성
+  name: self-signed
 
 certManager:
   issuerName: self-signed
-  domain: local.fastapi.test
+  domain: 192-168-50-115.nip.io
   secretName: whisper-tls
   duration: 2160h
   renewBefore: 360h
