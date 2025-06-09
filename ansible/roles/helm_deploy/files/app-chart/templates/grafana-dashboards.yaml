@@ -1,11 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fastapi-dashboard
+  name: grafana-dashboards
   labels:
     grafana_dashboard: "1"
+  namespace: default
 data:
-  fastapi-dashboard.json: |
+  grafana-dashboards.json: |
     {
       "id": null,
       "title": "FastAPI Monitoring",
