@@ -71,7 +71,6 @@
   when: cert_rollout.rc == 0           # 수정: cert-manager Deployment가 정상적으로 Ready 되었을 때만 체크포인트 생성
   become: true
 
-
 - name: ingress-nginx Helm repo 추가
   command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   args:
