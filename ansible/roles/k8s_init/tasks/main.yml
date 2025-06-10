@@ -132,13 +132,24 @@
   delay: 10                 # 재시도 간 10초 대기
   until: flannel_result.rc == 0  # 리턴 코드가 0일 때까지 반복 (0이면 성공)
 
-- name: Flannel Pod가 Running 상태가 될 때까지 대기  # Flannel이 설치된 후, Pod가 Ready 상태가 될 때까지 기다림
+- name: Flannel 파드가 생성될 때까지 대기 (존재 확인 루프)
   shell: |
-    kubectl wait --for=condition=Ready pods -l app=flannel -n kube-flannel --timeout=60s  # kube-flannel 네임스페이스의 flannel 파드가 Ready 상태가 될 때까지 최대 60초 대기
-  register: flannel_ready  # 명령 실행 결과를 flannel_ready 변수에 저장
-  failed_when: flannel_ready.rc != 0  # 명령의 반환 코드가 0이 아니면 실패로 간주 (예: 시간 초과)
+    while [ -z "$(kubectl get pods -n kube-flannel -l app=flannel -o name 2>/dev/null)" ]; do
+      echo "flannel pod not found yet... waiting"
+      sleep 3
+    done
+  register: wait_for_flannel_creation
+  changed_when: false
   environment:
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # kubectl 인증을 위한 kubeconfig 경로 지정
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+
+- name: Flannel 파드가 Ready 상태가 될 때까지 대기
+  shell: |
+    kubectl wait --for=condition=Ready pods -l app=flannel -n kube-flannel --timeout=120s
+  register: flannel_ready
+  failed_when: flannel_ready.rc != 0
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
 
 - name: Flannel DaemonSet 상태 확인 (Running 될 때까지 대기)  # Flannel Pod가 정상적으로 실행(Running)될 때까지 반복 확인
   shell: |

@@ -200,12 +200,10 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     cert-manager.io/cluster-issuer: "self-signed"
-
   tls:
     - hosts:
         - 192-168-50-115.nip.io
-      secretName: whisper-tls
-
+      secretName: whisper-tls-cert
   rules:  
     - host: 192-168-50-115.nip.io
       http:
@@ -262,11 +260,12 @@ ingress:
 
 issuer:
   enabled: true      # 한 번만 true로 해서 재생성
-  name: self-signed-cert
+  name: self-signed
 
 certManager:
-  issuerName: self-signed-cert
+  certName: whisper-tls-cert
+  issuerName: self-signed
   domain: 192-168-50-115.nip.io
-  secretName: whisper-tls
+  secretName: whisper-tls-cert
   duration: 2160h
   renewBefore: 360h
