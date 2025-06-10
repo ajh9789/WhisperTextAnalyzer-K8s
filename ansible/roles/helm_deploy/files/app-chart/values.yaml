@@ -250,7 +250,7 @@ ingress:
                 name: alertmanager-operated
                 port:
                   number: 9093
-          - path: /
+          - path: /fastapi
             pathType: Prefix
             backend:
               service:

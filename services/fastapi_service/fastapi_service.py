@@ -323,7 +323,7 @@ app = FastAPI(lifespan=lifespan)  # lifespan을 적용한 FastAPI 앱 인스턴�
 
 
 # 루트 엔드포인트 - 상태 확인용 HTML 응답#
-@app.get("/")  # 루트 경로: HTML 반환
+@app.get("/fastapi")  # 루트 경로: HTML 반환
 async def get():  # '/' 경로 처리 함수
     http_requests.inc()
     return HTMLResponse(html)
