@@ -29,155 +29,6 @@ neg_percent_gauge = Gauge("emotion_negative_percent", "👎 부정 비율")
 # Redis pubsub 전역 선언
 pubsub = None
 
-
-# FastAPI lifespan 함수 정의: 서버 시작/종료 타이밍에 실행되는 코드 정의
-@asynccontextmanager  # FastAPI 서버 수명주기(lifespan) 설정을 위한 데코레이터
-async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비동기 함수 정의
-    global pubsub
-    # 서버 시작 시: Redis 연결 및 pubsub 구독 설정
-    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)  # Redis 서버와 비동기 연결 설정
-    pubsub = redis.pubsub()  # Redis Pub/Sub 인스턴스 생성
-    await pubsub.subscribe("result_channel")  # Redis 채널 구독 시작
-    asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
-    yield
-    # 서버 종료 시: 구독 해제 및 리소스 정리
-    await pubsub.unsubscribe("result_channel")  # 서버 종료 시 Redis 채널 구독 해제
-    await pubsub.close()
-    print("[FastAPI] 🔒 Redis pubsub 정리 완료")
-
-
-# lifespan 적용된 FastAPI 인스턴스 생성
-app = FastAPI(lifespan=lifespan)  # lifespan을 적용한 FastAPI 앱 인스턴스 생성
-
-
-# 루트 엔드포인트 - 상태 확인용 HTML 응답#
-@app.get("/")  # 루트 경로: HTML 반환
-async def get():  # '/' 경로 처리 함수
-    http_requests.inc()
-    return HTMLResponse(html)
-
-
-# 감정 분석 통계 API
-@app.get("/status")  # 감정 통계용 API
-def status():
-    # 상태 응답
-    return {"positive": positive_count, "negative": negative_count}
-
-
-# Prometheus 메트릭 엔드포인트
-@app.get("/metrics")  # Prometheus 메트릭 노출용 API
-def metrics():
-    # 매트릭 갱신
-    return Response(generate_latest(), media_type="text/plain")
-
-
-# WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
-@app.websocket("/ws")  # WebSocket 연결 정의
-async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
-    # Redis 연결 확인
-    redis = await redis_from_url(redis_url)  # Redis 서버와 비동기 연결 설정
-    try:
-        await redis.ping()
-    except Exception as e:
-        print(f"❌Redis 연결 실패: {e}")
-        await websocket.close()
-        return
-
-    # WebSocket 연결 수락 및 사용자 등록
-    await websocket.accept()
-    connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
-    active_users_gauge.set(len(connected_users))  # 실시간 유저 인원 반영
-    # 전체 인원 브로드캐스트
-    for user in connected_users:
-        await user.send_text(f"PEOPLE:{len(connected_users)}")
-
-    TIMEOUT_SECONDS = 3  # 4초 모아서 stt한테 바로 전달
-
-    try:
-        while True:
-            audio_chunk = (await websocket.receive_bytes())  # 클라이언트로부터 오디오 청크 수신
-            user_state = connected_users.get(websocket)
-            if not user_state:
-                break
-
-            buffer = user_state["buffer"]
-            start_time = user_state["start_time"]
-
-            if not start_time:
-                user_state["start_time"] = asyncio.get_event_loop().time()
-
-            buffer.extend(audio_chunk)
-
-            if (asyncio.get_event_loop().time() - user_state["start_time"] >= TIMEOUT_SECONDS):
-                print(f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}")
-                try:  # Celery를 통해 STT 작업 전송# 브라우저에서 Int16Array로 전처리된 raw PCM데이터를 그대로 수신
-                    celery.send_task("stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue", )
-                except Exception as e:  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
-                    print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
-                # 버퍼 및 타이머 초기화
-                connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
-
-    except WebSocketDisconnect:  # WebSocket 연결 끊김 예외 처리
-        connected_users.pop(websocket, None)  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
-        active_users_gauge.set(len(connected_users))  # 실시간 연결 유저 인원 반영
-        for user in connected_users:
-            await user.send_text(f"PEOPLE:{len(connected_users)}")
-
-
-# Redis PubSub 수신 및 감정 통계 계산 루프
-async def redis_subscriber():  # Redis Pub/Sub 메시지 수신 및 처리 루프
-    global positive_count, negative_count  # 감정 분석 결과(긍정/부정) 전역 변수선언
-    print("[FastAPI] ✅ Subscribed to result_channel")
-
-    try:  # 개선된 이벤트 기반 처리 방식 (async for + listen)
-        async for message in pubsub.listen():
-            if message.get("type") != "message":
-                continue
-
-            data = message.get("data", "")
-            print(f"[FastAPI] 📩 메시지 수신: {data}")
-
-            # 메시지를 모든 연결된 WebSocket 사용자에게 전송
-            for user in list(connected_users):
-                try:
-                    await user.send_text(data)
-                except Exception as e:
-                    print(f"❌ WebSocket 전송 실패: {e}")
-                    connected_users.pop(user, None)
-
-            # 감정 분석 결과 카운팅
-            if "긍정" in data:
-                positive_count += 1
-            elif "부정" in data:
-                negative_count += 1
-
-            total = positive_count + negative_count
-            if total:
-                pos_percent = (positive_count / total) * 100
-                neg_percent = (negative_count / total) * 100
-            else:  # 감정 분석 결과(긍정/부정) 카운터 초기화
-                pos_percent = neg_percent = 0
-
-            # 실시간 메트릭 갱신
-            positive_gauge.set(positive_count)
-            negative_gauge.set(negative_count)
-            pos_percent_gauge.set(pos_percent)
-            neg_percent_gauge.set(neg_percent)
-
-            stats = f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
-            print(f"[FastAPI] 📊 {stats}")
-
-            for user in list(connected_users):
-                try:
-                    await user.send_text(stats)
-                except Exception:
-                    connected_users.pop(user, None)
-    except asyncio.CancelledError:
-        print("[FastAPI] 🔴 redis_subscriber 종료됨")
-    except Exception as e:
-        print(f"[FastAPI] ❌ 예외 발생: {e}")
-
-
 html = """
 <html>
 <head>
@@ -449,3 +300,153 @@ html = """
 </body>
 </html>
 """
+
+
+# FastAPI lifespan 함수 정의: 서버 시작/종료 타이밍에 실행되는 코드 정의
+@asynccontextmanager  # FastAPI 서버 수명주기(lifespan) 설정을 위한 데코레이터
+async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비동기 함수 정의
+    global pubsub
+    # 서버 시작 시: Redis 연결 및 pubsub 구독 설정
+    redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)  # Redis 서버와 비동기 연결 설정
+    pubsub = redis.pubsub()  # Redis Pub/Sub 인스턴스 생성
+    await pubsub.subscribe("result_channel")  # Redis 채널 구독 시작
+    asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
+    yield
+    # 서버 종료 시: 구독 해제 및 리소스 정리
+    await pubsub.unsubscribe("result_channel")  # 서버 종료 시 Redis 채널 구독 해제
+    await pubsub.close()
+    print("[FastAPI] 🔒 Redis pubsub 정리 완료")
+
+
+# lifespan 적용된 FastAPI 인스턴스 생성
+app = FastAPI(lifespan=lifespan)  # lifespan을 적용한 FastAPI 앱 인스턴스 생성
+
+
+# 루트 엔드포인트 - 상태 확인용 HTML 응답#
+@app.get("/")  # 루트 경로: HTML 반환
+async def get():  # '/' 경로 처리 함수
+    http_requests.inc()
+    return HTMLResponse(html)
+
+
+# 감정 분석 통계 API
+@app.get("/status")  # 감정 통계용 API
+def status():
+    # 상태 응답
+    return {"positive": positive_count, "negative": negative_count}
+
+
+# Prometheus 메트릭 엔드포인트
+@app.get("/metrics")  # Prometheus 메트릭 노출용 API
+def metrics():
+    # 매트릭 갱신
+    return Response(generate_latest(), media_type="text/plain")
+
+
+# WebSocket 엔드포인트 정의 - 오디오 수신 및 STT 큐 전송
+@app.websocket("/ws")  # WebSocket 연결 정의
+async def websocket_endpoint(websocket: WebSocket):  # 클라이언트 오디오 수신 및 STT 큐 전송 처리
+    # Redis 연결 확인
+    redis = await redis_from_url(redis_url)  # Redis 서버와 비동기 연결 설정
+    try:
+        await redis.ping()
+    except Exception as e:
+        print(f"❌Redis 연결 실패: {e}")
+        await websocket.close()
+        return
+
+    # WebSocket 연결 수락 및 사용자 등록
+    await websocket.accept()
+    connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
+    active_users_gauge.set(len(connected_users))  # 실시간 유저 인원 반영
+    # 전체 인원 브로드캐스트
+    for user in connected_users:
+        await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+    TIMEOUT_SECONDS = 3  # 4초 모아서 stt한테 바로 전달
+
+    try:
+        while True:
+            audio_chunk = (await websocket.receive_bytes())  # 클라이언트로부터 오디오 청크 수신
+            user_state = connected_users.get(websocket)
+            if not user_state:
+                break
+
+            buffer = user_state["buffer"]
+            start_time = user_state["start_time"]
+
+            if not start_time:
+                user_state["start_time"] = asyncio.get_event_loop().time()
+
+            buffer.extend(audio_chunk)
+
+            if (asyncio.get_event_loop().time() - user_state["start_time"] >= TIMEOUT_SECONDS):
+                print(f"[FastAPI] 🎯 사용자 {id(websocket)} → STT 전달, size: {len(buffer)}")
+                try:  # Celery를 통해 STT 작업 전송# 브라우저에서 Int16Array로 전처리된 raw PCM데이터를 그대로 수신
+                    celery.send_task("stt_worker.transcribe_audio", args=[bytes(buffer)], queue="stt_queue", )
+                except Exception as e:  # Celery 직렬화 호환성과 STT 입력 포맷의 효율성 위해 bytes()로 감싼 후 전송
+                    print(f"[FastAPI] ❌ Celery 전송 실패: {e}")
+                # 버퍼 및 타이머 초기화
+                connected_users[websocket] = {"buffer": bytearray(), "start_time": None}
+
+    except WebSocketDisconnect:  # WebSocket 연결 끊김 예외 처리
+        connected_users.pop(websocket, None)  # 연결끊기면 남은 잔여 버퍼 처리 없으면 None을 반환
+        active_users_gauge.set(len(connected_users))  # 실시간 연결 유저 인원 반영
+        for user in connected_users:
+            await user.send_text(f"PEOPLE:{len(connected_users)}")
+
+
+# Redis PubSub 수신 및 감정 통계 계산 루프
+async def redis_subscriber():  # Redis Pub/Sub 메시지 수신 및 처리 루프
+    global positive_count, negative_count  # 감정 분석 결과(긍정/부정) 전역 변수선언
+    print("[FastAPI] ✅ Subscribed to result_channel")
+
+    try:  # 개선된 이벤트 기반 처리 방식 (async for + listen)
+        async for message in pubsub.listen():
+            if message.get("type") != "message":
+                continue
+
+            data = message.get("data", "")
+            print(f"[FastAPI] 📩 메시지 수신: {data}")
+
+            # 메시지를 모든 연결된 WebSocket 사용자에게 전송
+            for user in list(connected_users):
+                try:
+                    await user.send_text(data)
+                except Exception as e:
+                    print(f"❌ WebSocket 전송 실패: {e}")
+                    connected_users.pop(user, None)
+
+            # 감정 분석 결과 카운팅
+            if "긍정" in data:
+                positive_count += 1
+            elif "부정" in data:
+                negative_count += 1
+
+            total = positive_count + negative_count
+            if total:
+                pos_percent = (positive_count / total) * 100
+                neg_percent = (negative_count / total) * 100
+            else:  # 감정 분석 결과(긍정/부정) 카운터 초기화
+                pos_percent = neg_percent = 0
+
+            # 실시간 메트릭 갱신
+            positive_gauge.set(positive_count)
+            negative_gauge.set(negative_count)
+            pos_percent_gauge.set(pos_percent)
+            neg_percent_gauge.set(neg_percent)
+
+            stats = f"✅ Listener 통계 → 👍{positive_count}회{pos_percent:.0f}%|{neg_percent:.0f}%{negative_count}회 👎"
+            print(f"[FastAPI] 📊 {stats}")
+
+            for user in list(connected_users):
+                try:
+                    await user.send_text(stats)
+                except Exception:
+                    connected_users.pop(user, None)
+    except asyncio.CancelledError:
+        print("[FastAPI] 🔴 redis_subscriber 종료됨")
+    except Exception as e:
+        print(f"[FastAPI] ❌ 예외 발생: {e}")
+
+
