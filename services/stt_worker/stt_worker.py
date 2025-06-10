@@ -89,7 +89,7 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
             # ✅ whisper.cpp CLI 실행 방식으로 대체됨
             command = [
                 './main',  # whisper.cpp 실행 파일
-                '-m', '/app/models/ggml-medium.bin',
+                '-m', '/app/models/ggml-small.bin',
                 '-f', tmpfile.name,
                 '-l', 'ko',
                 '-otxt'

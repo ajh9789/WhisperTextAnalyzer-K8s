@@ -149,7 +149,7 @@ sttWorker:
     - name: MODEL_PATH
       value: /app/models
     - name: MODEL_SIZE
-      value: medium  # 또는 tiny, small, medium
+      value: small  # 또는 tiny, small, medium
   envFrom:
     - configMapRef:
         name: whisper-config
@@ -172,7 +172,7 @@ sttWorkerHPA:
 whisperConfig:
   REDIS_HOST: redis
   MODEL_PATH: /app/models
-  MODEL_SIZE: medium
+  MODEL_SIZE: small
   DOCKER: "1"
 
 persistentVolume:

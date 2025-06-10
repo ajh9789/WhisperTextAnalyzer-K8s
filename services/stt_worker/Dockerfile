@@ -18,11 +18,11 @@ RUN git clone https://github.com/ggerganov/whisper.cpp.git
 WORKDIR /app/whisper.cpp
 RUN make
 
-# medium 모델 다운로드 (약 1.5GB)
+# medium 모델 다운로드 (약 1.5GB) 테스트는 스몰
 WORKDIR /app
 RUN mkdir -p /app/models && \
-    curl -L -o /app/models/ggml-medium.bin \
-    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+    curl -L -o /app/models/ggml-small.bin \
+    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
 
 # 애플리케이션 코드 복사
 COPY . /app
