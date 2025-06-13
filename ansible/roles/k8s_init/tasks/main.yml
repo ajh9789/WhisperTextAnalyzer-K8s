@@ -60,7 +60,6 @@
     state: present                                   # 현재 커널 설정 상태로 유지 (이미 설정돼 있어도 적용 시도)
     reload: yes                                      # 설정 변경 사항을 즉시 시스템에 반영 (sysctl -p 없이 적용)
 
-
 - name: containerd 재시작  # 설정 변경을 반영하기 위한 재시작 및 자동시작 설정
   systemd:
     name: containerd                          # 대상 서비스 이름
@@ -101,9 +100,21 @@
     update_cache: yes  # APT 캐시 갱신
 
 - name: kubeadm init 실행  # 마스터 노드에서 클러스터 초기화 실행
-  shell: kubeadm init --pod-network-cidr=10.244.0.0/16  # Flannel에 필요한 Pod CIDR 설정
+  shell: kubeadm init --pod-network-cidr=10.244.0.0/16 # Flannel에 필요한 Pod CIDR 설정
   args:
-    creates: /etc/kubernetes/admin.conf       # 이미 초기화된 경우 재실행 방지
+    creates: /etc/kubernetes/admin.conf # 이미 초기화된 경우 재실행 방지
+
+- name: kube-apiserver.yaml에 --service-node-port-range=80-32767 옵션 추가
+  lineinfile:
+    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    insertafter: '^\s*- --secure-port=6443'
+    line: '    - --service-node-port-range=80-32767'
+    state: present
+  become: true
+
+- name: kubelet 바로 재시작
+  shell: systemctl restart kubelet
+  become: true
 
 - name: .kube 디렉토리 생성  # kubectl 설정 파일을 위한 사용자 디렉토리 생성
   file:
@@ -131,6 +142,13 @@
   retries: 5                # 최대 5번까지 재시도
   delay: 10                 # 재시도 간 10초 대기
   until: flannel_result.rc == 0  # 리턴 코드가 0일 때까지 반복 (0이면 성공)
+
+- name: CNI 플러그인 바이너리 설치 (기본 CNI 기능 보장)
+  unarchive:
+    src: https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz
+    dest: /opt/cni/bin
+    remote_src: yes
+    creates: /opt/cni/bin/loopback
 
 - name: Flannel 파드가 생성될 때까지 대기 (존재 확인 루프)
   shell: |

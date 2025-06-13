@@ -9,5 +9,6 @@ spec:
   selector:
     app: fastapi
   ports:
-    - port: {{ .Values.fastapi.service.port }}
+    - name: {{ .Values.fastapi.service.portName | default "http" }}   # ← name 필드 추가
+      port: {{ .Values.fastapi.service.port }}
       targetPort: {{ .Values.fastapi.service.targetPort }}

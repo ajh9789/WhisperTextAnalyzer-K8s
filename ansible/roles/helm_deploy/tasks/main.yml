@@ -1,240 +1,152 @@
-- name: Helm 설치 여부 확인
-  command: helm version   # Helm 설치 여부 확인
-  register: helm_output   # 결과를 helm_output 변수에 저장
-  changed_when: false     # 이 작업은 상태 변경으로 간주하지 않음 (Always OK)
-  failed_when: false      # Helm이 없어서 실패해도 에러로 처리하지 않음
-  become: true            # sudo 권한으로 실행 (중요)
-
-- name: Helm 설치 안 되어 있으면 설치 # Helm이 없을 때만 실행
-  shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-  when: helm_output.rc is defined and helm_output.rc != 0   
-  become: true  # 설치 명령은 sudo 필요
-
-- name: cert-manager CRD 설치 (API 서버 대기)  # cert-manager 리소스를 위한 CRD 설치 (API 서버가 뜰 때까지 재시도)
-  shell: |
-    kubectl apply --validate=false -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.crds.yaml  # 검증 생략은 여전히 포함 (단, 재시도와 함께 사용)
-  environment:
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
-  args:
-    creates: /etc/kubernetes/cert-manager-crd-installed  # CRD 설치 이력이 없을 때만 실행 (중복 방지용 체크포인트 파일)
-  register: cert_crd_result
-  retries: 5       # 최대 5회 재시도
-  delay: 10        # 재시도 간 10초 간격 대기
-  until: cert_crd_result.rc == 0  # 리턴 코드가 0(성공)일 때까지 반복
-  become: true     # CRD 설치는 시스템 레벨 작업이므로 root 권한 필요
-
-- name: cert-manager 설치용 Helm 리포지토리 추가  # jetstack repository를 Helm에 등록
+# 0. cert-manager 설치
+- name: cert-manager Helm repo 추가
   command: helm repo add jetstack https://charts.jetstack.io
   args:
-    creates: /etc/kubernetes/.cert-manager-helm-repo-added  # 한 번만 추가
+    creates: /etc/kubernetes/.cert-manager-helm-repo-added
   register: cert_repo_add
-  changed_when: "'\"jetstack\" has been added' in cert_repo_add.stdout"
   become: true
 
-- name: cert-manager Helm 리포지토리 업데이트  # 최신 chart 목록을 가져오기 위해 업데이트
-  command: helm repo update
-  when: cert_repo_add is changed
-  become: true
-
-- name: cert-manager Helm 설치  # cert-manager 컨트롤러를 Helm으로 설치 (CRD는 이미 설치됨)
-  command: >
-    helm upgrade --install cert-manager jetstack/cert-manager
-    --namespace cert-manager
-    --create-namespace
-    --set installCRDs=false
-  environment:
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config  # Helm이 kube-apiserver에 연결할 인증 정보 지정
-  # args:
-  #   creates: /etc/kubernetes/cert-manager-installed  # 기존: 무조건 설치 성공으로 간주되어 체크포인트 생성됨
-  register: cert_helm_result
-  changed_when: "'Release' in cert_helm_result.stdout or 'deployed' in cert_helm_result.stdout"
-  failed_when: cert_helm_result.rc != 0  # 수정: Helm 설치가 실제로 실패했을 때만 실패 처리
-  become: true
-
-- name: cert-manager 설치 확인 (Pod Ready 대기)  # 추가: cert-manager Pod이 실제로 Running 상태가 될 때까지 대기
+# 1. ingress-nginx, prometheus, grafana repo 추가
+- name: Helm repo들 추가
   shell: |
-    kubectl rollout status deployment cert-manager -n cert-manager
-  register: cert_rollout
-  retries: 6
-  delay: 10
-  until: cert_rollout.rc == 0
-  failed_when: cert_rollout.rc != 0
+    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    helm repo add grafana https://grafana.github.io/helm-charts
+  args:
+    creates: /etc/kubernetes/.all-helm-repos-added
+  become: true
+
+# 2. repo 업데이트
+- name: Helm repo 업데이트 (모든 repo 반영)
+  command: helm repo update
+  become: true
+
+# 3. cert-manager 설치 (CRD 포함) # 내부 dns 이슈 \, \\,으로써야 파서됨
+- name: cert-manager 설치
+  command: >
+    helm upgrade --install cert-manager jetstack/cert-manager \
+      --namespace cert-manager \
+      --create-namespace \
+      --set installCRDs=true \
+      --set extraArgs[0]=--dns01-recursive-nameservers=8.8.8.8:53\\,1.1.1.1:53 \
+      --set extraArgs[1]=--dns01-recursive-nameservers-only \
+      --wait --timeout 120s
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-- name: cert-manager 설치 체크포인트 저장  # 다음 실행 시 재설치 방지를 위한 로컬 파일 생성
-  file:
-    path: /etc/kubernetes/cert-manager-installed
-    state: touch
-  # when: cert_helm_result is changed  # 기존 조건: Helm이 뭔가 바뀌었으면 생성 (실제로 성공했는지 관계없이 저장될 수 있음)
-  when: cert_rollout.rc == 0           # 수정: cert-manager Deployment가 정상적으로 Ready 되었을 때만 체크포인트 생성
+- name: cert-manager Ready 상태 확인
+  shell: |
+    kubectl rollout status deployment cert-manager -n cert-manager --timeout=120s
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-### http설치할라면 controller도 필수 설정!!!
-# ingress-nginx values.yaml 파일 생성 (NodePort + HTTPS 설정 포함)
-- name: ingress-nginx 설정 values 파일 생성
-  copy:
-    dest: /tmp/app-chart/ingress-values.yaml
-    content: |
-      controller:
-        ingressClass: nginx
-        ingressClassResource:
-          name: nginx
-        service:
-          type: NodePort
-          nodePorts:
-            http: 30080
-            https: 30443
-          ports:
-            http: 80
-            https: 443
-    mode: '0644'
+# 3.5 DuckDNS webhook GitHub에서 직접 clone
+- name: DuckDNS cert-manager webhook chart 클론
+  git:
+    repo: https://github.com/ebrianne/cert-manager-webhook-duckdns.git
+    dest: /tmp/cert-manager-webhook-duckdns
+    force: yes
+  become: true
 
-# Helm repo 업데이트 (필요 시)
-- name: ingress-nginx Helm repo 추가
-  command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-  register: add_repo_result
-  failed_when: add_repo_result.rc != 0 and '"already exists"' not in add_repo_result.stderr
+# 3.6 cert-manager webhook - DuckDNS Helm 설치
+- name: cert-manager webhook - DuckDNS 설치 # 토큰과 이메일
+  command: >
+    helm upgrade --install cert-manager-webhook-duckdns
+    ./deploy/cert-manager-webhook-duckdns
+    -n cert-manager
+    --create-namespace
+    --set duckdns.token="#######토큰자리########"
+    --set clusterIssuer.production.create=true
+    --set clusterIssuer.email=####이메일주소자리######
+    --wait --timeout 120s
+  args:
+    chdir: /tmp/cert-manager-webhook-duckdns
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
 
-- name: ingress-nginx Helm repo 업데이트
-  command: helm repo update
+# 3.7 webhook Ready 상태 확인
+- name: DuckDNS webhook pod Ready 상태 확인
+  shell: kubectl rollout status deployment cert-manager-webhook-duckdns -n cert-manager --timeout=120s
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
 
-# ingress-nginx 설치 (values 파일 기반, Chart 버전 명시 optional)
-- name: ingress-nginx 설치 (values 파일 기반)
+# 4. ingress-nginx 설치
+- name: ingress-nginx 설치
   command: >
     helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
-    --version 4.10.0 \
     --namespace ingress-nginx
     --create-namespace
-    -f /tmp/app-chart/ingress-values.yaml
+    --set controller.service.type=NodePort
+    --set controller.service.nodePorts.http=80
+    --set controller.service.nodePorts.https=443
+    --set controller.publishService.enabled=true
+    --wait --timeout 120s
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
-  register: ingress_install_result
-  retries: 3
-  delay: 5
-  until: ingress_install_result.rc == 0
 
-- name: ingress-nginx controller가 Ready 상태가 될 때까지 대기
-  shell: |
-    kubectl wait --namespace ingress-nginx \
-      --for=condition=Ready pod \
-      -l app.kubernetes.io/component=controller \
-      --timeout=60s
+- name: ingress-nginx controller Ready 확인
+  shell: >
+    kubectl rollout status deployment ingress-nginx-controller -n ingress-nginx --timeout=120s
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
-  register: controller_ready_check
-  failed_when: controller_ready_check.rc != 0
   become: true
 
-# 1. 로컬에서 Helm Chart 디렉토리의 해시 계산 (디렉토리 내용이 바뀌었는지 판단 기준)
-- name: Helm Chart 디렉토리 해시 계산
-  shell: "find roles/helm_deploy/files/app-chart -type f -exec sha1sum {} + | sha1sum | awk '{print $1}'"
-  delegate_to: localhost    # 로컬에서 해시 계산 (원격 아님)
-  become: false    # sudo 사용하지 않도록 명시(내 로컬이라)
-  register: chart_hash      # 결과를 chart_hash.stdout으로 저장
-
-# 2. facts.d 디렉토리 보장 (없는 경우 생성)
-- name: Ensure /etc/ansible/facts.d exists  # 커스텀 팩트 저장용 디렉토리 준비
-  file:
-    path: /etc/ansible/facts.d
-    state: directory
-    owner: root
-    group: root
+# 5. app-chart 배포
+- name: Helm Chart 디렉토리 복사
+  copy:
+    src: roles/helm_deploy/files/app-chart/
+    dest: /tmp/app-chart
+    force: true
     mode: '0755'
+  become: true
 
-# 3. 원격 서버의 기존 facts 불러오기 (ansible_local.helm_chart.hash 참조 가능하게 함)
-- name: 로컬 facts 수집 (ansible_local.helm_chart 사용 가능하게 함)
-  setup:
-    filter: ansible_local
-
-# 4. Helm Chart 디렉토리 복사 (해시가 다를 경우에만 복사 수행)
-- name: Helm Chart 디렉토리 복사  # Helm 차트를 원격 서버의 /tmp 경로로 복사
-  copy:
-    src: roles/helm_deploy/files/app-chart/   # 복사할 로컬 디렉토리 (플레이북 기준 상대 경로)
-    dest: /tmp/app-chart                      # 복사 대상 경로 (원격 서버의 임시 디렉토리)
-    mode: '0755'                              # 복사된 디렉토리의 권한 설정 (rwxr-xr-x)
-  when: ansible_local.helm_chart.hash is not defined or ansible_local.helm_chart.hash != chart_hash.stdout
-    # 조건: 기존에 기록된 해시가 없거나, 현재 Chart 디렉토리와 다르면 복사 수행
-  become: true                                # root 권한으로 복사 수행 (권한 오류 방지)
-  register: helm_chart_copy                   # 복사 작업 결과를 helm_chart_copy 변수에 저장
-
-# 5. 복사된 경우에만 새 해시값 기록 (다음 실행 시 중복 방지)
-- name: 체크포인트 저장 (복사 완료 상태 기록)  # Helm Chart 복사가 발생했을 경우 해시 저장
-  copy:
-    content: '{"hash": "{{ chart_hash.stdout }}"}'  # 현재 Chart 디렉토리 해시값을 JSON 형식으로 저장
-    dest: /etc/ansible/facts.d/helm_chart.fact       # 저장 위치 (Ansible이 자동 인식하는 facts 디렉토리)
-  when: helm_chart_copy.changed                     # 복사가 실제로 발생한 경우에만 상태 기록
-
-# 6. Helm Chart 배포 (복사 여부와 관계없이 배포 시도)
-- name: Helm Chart 배포     # Helm Chart 설치 또는 업그레이드
-  command: helm upgrade --install myrelease ./app-chart -n default 
-  args:    # Chart가 위치한 디렉토리로 이동
-    chdir: /tmp  
-  become: true   # 배포도 root 권한 필요                                     
-  environment:  # Helm이 연결할 Kubernetes 클러스터의 인증 정보를 명확히 지정
-    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
-
-# 모니터링 앱들 설치 및 value 적용
-- name: prometheus-community Helm repo 추가
-  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+- name: Helm Chart 배포
+  command: helm upgrade --install myrelease ./app-chart -n default
   args:
-    creates: /etc/kubernetes/.prometheus-repo-added
-  register: prometheus_repo_add
-  changed_when: "'prometheus-community' in prometheus_repo_add.stdout"
-  become: true
-
-- name: grafana Helm repo 추가
-  command: helm repo add grafana https://grafana.github.io/helm-charts
-  args:
-    creates: /etc/kubernetes/.grafana-repo-added
-  register: grafana_repo_add
-  changed_when: "'grafana' in grafana_repo_add.stdout"
-  become: true
-
-# 1. Helm repo 등록 생략 (생략 안 할 거면 유지)
-- name: Helm repo 업데이트
-  command: helm repo update
-  become: true
-
-# 2. kube-prometheus-stack 설치 (Grafana 포함됨)
-- name: kube-prometheus-stack 설치 (default 네임스페이스)
-  command: >
-    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
-    -n default
-    --create-namespace
-    -f /tmp/app-chart/grafana-values.yaml
+    chdir: /tmp
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-# 3. loki-stack 설치 (Grafana와 데이터 연동 목적)
-- name: loki-stack 설치 (default 네임스페이스)
+# 6. kube-prometheus-stack + loki 설치
+- name: Loki-stack 설치 (Grafana 로그 연동용)
   command: >
     helm upgrade --install loki grafana/loki-stack
     -n default
     --create-namespace
     -f /tmp/app-chart/loki-values.yaml
+    --wait --timeout 240s
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-# 4. Grafana Pod Ready 대기 grafana가 안뜨면 configmap이 안붙음
-- name: Grafana Pod Ready 대기
-  shell: |
-    kubectl wait --namespace default \
-      --for=condition=Ready pod \
-      -l app.kubernetes.io/name=grafana \
-      --timeout=15s
+- name: kube-prometheus-stack 설치 (grafana 포함)
+  command: >
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
+    -n default
+    --create-namespace
+    -f /tmp/app-chart/grafana-values.yaml
+    --wait --timeout 240s
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true
 
-# 5. Grafana 대시보드 ConfigMap 적용
-- name: Grafana ConfigMap 생성
+- name: 기존 PVC 제거 
   shell: |
-    kubectl apply -f /tmp/app-chart/templates/grafana-dashboards.yaml -n default
+    kubectl delete pvc pvc-models -n default --ignore-not-found
+  environment:
+    KUBECONFIG: /home/{{ ansible_user }}/.kube/config
+  become: true
+
+- name: Helm Chart 강제 재설치 (Force Upgrade)
+  command: helm upgrade --install myrelease ./app-chart -n default --wait --timeout 300s --force
+  args:
+    chdir: /tmp
   environment:
     KUBECONFIG: /home/{{ ansible_user }}/.kube/config
   become: true

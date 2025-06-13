@@ -2,20 +2,17 @@ loki:
   enabled: true
 
 grafana:
-  enabled: false
-  sidecar:
-    datasources:
-      enabled: false
+  enabled: false    
 
 prometheus:
-  enabled: false
+  enabled: false  
 
 promtail:
-  enabled: true
+  enabled: true    
   config:
     snippets:
       pipelineStages:
-        - cri: { }
+        - cri: {}
       extraScrapeConfigs: |
         - job_name: fastapi-logs
           static_configs:

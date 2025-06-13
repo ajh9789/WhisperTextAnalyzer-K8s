@@ -2,17 +2,15 @@ grafana:
   enabled: true
   adminUser: admin
   adminPassword: admin
-  service:
-    type: ClusterIP
-    port: 80
-  # 자동 대시보드 ConfigMap을 감시하는 사이드카 설정
+  defaultDatasourceEnabled: false  # 사실상 커스텀이라 디폴트끔
+
   sidecar:
+    datasources:
+      enabled: false # 수동 datasource 쓸 거니까 끔
     dashboards:
-      enabled: true
-      label: grafana_dashboard
-      labelValue: "1"
-      searchNamespace: ALL  # default 네임스페이스 외에 다른 것도 허용 시 ALL
-  # Prometheus, Loki 데이터소스 자동 등록
+      enabled: true # 기본 제공 대시보드만 자동 등록
+      searchNamespace: ALL
+
   datasources:
     datasources.yaml:
       apiVersion: 1
@@ -26,29 +24,13 @@ grafana:
           type: loki
           access: proxy
           url: http://loki.default.svc.cluster.local:3100
-          isDefault: false  # 명시 안해서 그라파다 포드하나죽음
-  # 대시보드 로딩용 provider 설정
-  dashboardProviders:
-    dashboardproviders.yaml:
-      apiVersion: 1
-      providers:
-        - name: default
-          orgId: 1
-          folder: ""
-          type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/default
-  # 대시보드를 로딩할 ConfigMap 이름 매핑
-  dashboardsConfigMaps:
-    default: grafana-dashboards
+          isDefault: false
 
 prometheus:
   enabled: true
   prometheusSpec:
     serviceMonitorSelectorNilUsesHelmValues: false
-    serviceMonitorSelector: { }
+    serviceMonitorSelector: {}
     additionalServiceMonitors:
       - name: fastapi-monitor
         selector:
