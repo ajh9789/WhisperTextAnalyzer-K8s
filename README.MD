@@ -30,7 +30,7 @@
 
 #### 주요 도구 및 기술 스택
 
-- Infrastructure: Kubernetes (kubeadm), Docker, WSL2, VMware
+- Infrastructure: Kubernetes (kubeadm), Docker, WSL2, VMware, VM(Azure)
 - 자동화 도구: Ansible, Helm
 - 서비스 구성: FastAPI, Redis, Celery, Whisper, Grafana, Prometheus, Loki
 - 인증 및 네트워크: Ingress, cert-manager, Let's Encrypt, DuckDNS
