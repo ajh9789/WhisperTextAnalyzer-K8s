@@ -101,20 +101,20 @@
 
 #### 학습 타임라인 및 회고
 
-📅 Week 1 (2025.05.17 \~ 05.24):
+ **Week 1 (2025.05.17 \~ 05.24):**
 
 - Kubernetes 기본 구조, minikube 실습을 통한 개념 정리
 - FastAPI, Redis, Celery 연동 구조 학습
 - NodePort, Dockerfile 구성, 비동기 처리 이해
 
-📅 Week 2 (2025.05.25 \~ 06.02):
+ **Week 2 (2025.05.25 \~ 06.02):**
 
 - Prometheus, Grafana, Loki 기반 모니터링 구성
 - Helm 템플릿 설계 및 배포 흐름 정리
 - Ansible로 kubeadm 기반 단일 노드 클러스터 자동화 구성
 - VMware 기반 WSL2 연동 및 SSH 설정 처리
 
-📅 Week 3 (2025.06.03 \~ 06.14):
+ **Week 3 (2025.06.03 \~ 06.14):**
 
 - 인증서 구성(cert-manager, Let's Encrypt), Ingress 연동
 - Helm 기반 HTTPS 자동화 구성 및 오류 해결 반복 실습
