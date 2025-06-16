@@ -84,7 +84,7 @@
 
 #### 주요 특징 및 포인트
 
-- 템플릿화된 Helm Chart 사용 → 실습 반복 가능성 확보
+- 템플릿화된 Helm Chart 사용 → 실습 반복
 - ingress.yaml에서 cert-manager.io/cluster-issuer 어노테이션 기반 HTTPS 인증 자동 구성
 - secret.yaml, letsencrypt-cert.yaml 등 인증/보안 리소스도 Helm 차트로 통합 관리
 - values.yaml 중심의 오버라이딩 구조로 설정 유지
