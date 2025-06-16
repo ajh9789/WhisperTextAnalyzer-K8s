@@ -26,7 +26,7 @@ celery = Celery("stt_worker", broker=f"redis://{REDIS_HOST}:6379/0")  # Celery �
 # buffer = deque()
 
 
-# ✅ 반복 텍스트 필터 함수
+# 반복 텍스트 필터 함수
 def is_repetitive(text: str) -> bool:
     # 1. 문자 반복 검사:
     # 공백을 제거한 후 같은 문자가 5번 이상 반복되면 반복으로 간주
@@ -86,7 +86,7 @@ def transcribe_audio(audio_bytes):  # STT 오디오 처리 함수 정의
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:  # 오디오 데이터를 임시 WAV 파일로 저장
         write(tmpfile.name, 16000, audio_np.astype(np.int16))  # numpy 배열을 16kHz wav로 저장
         try:
-            # ✅ whisper.cpp CLI 실행 방식으로 대체됨
+            # whisper.cpp CLI 실행 방식으로 대체됨
             command = [
                 './main',  # whisper.cpp 실행 파일
                 '-m', '/app/models/ggml-small.bin',
