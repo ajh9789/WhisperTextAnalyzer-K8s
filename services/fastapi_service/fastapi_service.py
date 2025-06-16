@@ -1,6 +1,6 @@
 import os
 import asyncio
-from contextlib import asynccontextmanager  # ✅ lifespan 구현용
+from contextlib import asynccontextmanager 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from prometheus_client import Counter, generate_latest, Gauge
@@ -310,7 +310,7 @@ async def lifespan(app: FastAPI):  # 서버 시작 및 종료 시 수행할 비�
     redis = await redis_from_url(redis_url, encoding="utf-8", decode_responses=True)  # Redis 서버와 비동기 연결 설정
     pubsub = redis.pubsub()  # Redis Pub/Sub 인스턴스 생성
     await pubsub.subscribe("result_channel")  # Redis 채널 구독 시작
-    asyncio.create_task(redis_subscriber())  # ✅ 백그라운드로 Redis 수신 태스크 실행
+    asyncio.create_task(redis_subscriber())  # 백그라운드로 Redis 수신 태스크 실행
     yield
     # 서버 종료 시: 구독 해제 및 리소스 정리
     await pubsub.unsubscribe("result_channel")  # 서버 종료 시 Redis 채널 구독 해제
