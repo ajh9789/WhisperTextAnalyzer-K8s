@@ -9,12 +9,14 @@
 > http-01 → DNS-01 방식 전환, NodePort 포트 범위 확장 등 다양한 방법을 시도했으나,
 > **내부 네트워크 환경에서의 접근 제한 및 DNS 인증 응답 실패**로 인해 인증 자동화에 반복적인 실패가 발생했습니다.
 
-> 결과적으로, **멀티 노드 환경(현재 교육 받는 중인 AKS)** 으로 전환하여 실습을 이어가기로 판단하였습니다.[(WhisperTextAnalyzer-K8s-aks GitHub)](https://github.com/ajh9789/WhisperTextAnalyzer-K8s-aks).
-
 > 또한 본 실습은 초기에는 **WSL2 기반 로컬 환경에서 Minikube와 Helm Chart 설계**로 시작되었고, 이후 **VMware Workstation 기반 로컬 쿠버네티스(kubeadm) 자동화**,
 > 그리고 **Azure VM 기반 kubeadm 실습**으로 점진적으로 확장되었습니다.
 > 이 과정에서 **네트워크 구성 방식의 차이**, **인증서 발급 오류**, **내부 IP 기반의 접근 한계** 등을 반복적으로 겪으며,
 > **실제 인프라 전환 시 고려해야 할 인증 구조와 네트워크 환경의 차이점**을 학습할 수 있었습니다.
+
+---
+
+> 후속 계획으로 도메인을 구입하고, MetalLB를 통해 LoadBalancer 타입을 구성하여 http-01 인증을 적용하거나, Cloudflare DNS를 연동한 dns-01 인증 방식으로 문제를 해결할 예정입니다.
 
 - FastAPI + Redis + Celery 기반 실시간 분석 시스템
 - Whisper 기반 STT 모델 + 감정 분석 모듈 포함
